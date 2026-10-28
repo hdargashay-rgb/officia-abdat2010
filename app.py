@@ -49,6 +49,13 @@ st.markdown("""
         margin-bottom: 0.3rem;
         font-size: 0.85rem;
     }
+    .download-box {
+        background-color: #e8f5e9;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-right: 4px solid #4caf50;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,6 +63,7 @@ st.markdown("""
 if 'agent' not in st.session_state:
     st.session_state.agent = Agent()
     st.session_state.chat_history = []
+    st.session_state.last_files_created = []  # لتخزين الملفات للتحميل
 
 # الشريط الجانبي
 with st.sidebar:
@@ -92,7 +100,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.subheader("📁 الملفات المُنشأة")
+    st.subheader("📁 الملفات في مساحة العمل")
     if os.path.exists(WORKSPACE_DIR):
         files = os.listdir(WORKSPACE_DIR)
         if files:
@@ -105,8 +113,9 @@ with st.sidebar:
     
     st.markdown("---")
     
-    if st.button("🗑️ مسح المحادثة"):
+    if st.button("🗑️ مسح المحادثة والذاكرة"):
         st.session_state.chat_history = []
+        st.session_state.last_files_created = []
         st.rerun()
 
 # الواجهة الرئيسية
@@ -131,6 +140,26 @@ with chat_container:
                 {message['content']}
             </div>
             """, unsafe_allow_html=True)
+
+# عرض أزرار تحميل الملفات (إذا وجدت)
+if st.session_state.get('last_files_created'):
+    st.markdown("---")
+    st.markdown('<div class="download-box"><strong>📂 الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
+    
+    for file in st.session_state.last_files_created:
+        file_path = os.path.join(WORKSPACE_DIR, file)
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+            
+            st.download_button(
+                label=f"⬇️ تحميل الملف: {file}",
+                data=file_bytes,
+                file_name=file,
+                mime="application/octet-stream",
+                key=f"download_btn_{file}",
+                use_container_width=True
+            )
 
 # إدخال الطلب
 st.markdown("---")
@@ -157,7 +186,7 @@ if submit and user_input:
     })
     
     # عرض مؤشر التحميل
-    with st.spinner('جاري تنفيذ المهمة...'):
+    with st.spinner('جاري تنفيذ المهمة... يرجى الانتظار'):
         try:
             result = st.session_state.agent.execute_task(user_input)
             
@@ -169,9 +198,14 @@ if submit and user_input:
                     response += f"**الملفات المُنشأة:**\n"
                     for file in result['files_created']:
                         response += f"📄 {file}\n"
+                    # حفظ الملفات في الجلسة لعرض أزرار التحميل
+                    st.session_state.last_files_created = result['files_created']
+                else:
+                    st.session_state.last_files_created = []
             else:
                 response = f"❌ **فشل التنفيذ بعد {result['attempts']} محاولات**\n\n"
                 response += f"**الخطأ:**\n```\n{result.get('error', 'خطأ غير محدد')}\n```\n"
+                st.session_state.last_files_created = []
             
             # إضافة رد الوكيل
             st.session_state.chat_history.append({
@@ -185,14 +219,15 @@ if submit and user_input:
                 'role': 'bot',
                 'content': error_msg
             })
+            st.session_state.last_files_created = []
     
-    # إعادة رسم الصفحة
+    # إعادة رسم الصفحة لتحديث الواجهة
     st.rerun()
 
 # تذييل الصفحة
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v1.0 - الوكيل الذكي للمهام المكتبية</p>
+    <p>Officia v1.1 - الوكيل الذكي للمهام المكتبية</p>
 </div>
 """, unsafe_allow_html=True)
