@@ -4,6 +4,7 @@ Officia - واجهة الويب للوكيل الذكي
 import streamlit as st
 import os
 import sys
+import time
 
 # إضافة مسار المشروع
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -49,12 +50,12 @@ st.markdown("""
         margin-bottom: 0.3rem;
         font-size: 0.85rem;
     }
-    .download-box {
-        background-color: #e8f5e9;
-        padding: 1rem;
+    .file-card {
+        background-color: #ffffff;
+        padding: 0.8rem;
         border-radius: 0.5rem;
-        border-right: 4px solid #4caf50;
-        margin-bottom: 1rem;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 0.8rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -63,7 +64,6 @@ st.markdown("""
 if 'agent' not in st.session_state:
     st.session_state.agent = Agent()
     st.session_state.chat_history = []
-    st.session_state.last_files_created = []  # لتخزين الملفات للتحميل
 
 # الشريط الجانبي
 with st.sidebar:
@@ -72,7 +72,6 @@ with st.sidebar:
     
     st.subheader("📊 معلومات النظام")
     
-    # عرض جميع المزودين والنماذج المتاحة
     st.markdown("**المزودون والنماذج المتاحة:**")
     
     st.markdown(f"""
@@ -100,22 +99,64 @@ with st.sidebar:
     
     st.markdown("---")
     
-    st.subheader("📁 الملفات في مساحة العمل")
+    # ==========================================
+    # مساحة العمل التراكمية الدائمة مع أزرار التحميل
+    # ==========================================
+    st.subheader("📁 مساحة العمل")
+    
     if os.path.exists(WORKSPACE_DIR):
-        files = os.listdir(WORKSPACE_DIR)
+        # ترتيب الملفات من الأحدث إلى الأقدم
+        files = sorted(
+            [f for f in os.listdir(WORKSPACE_DIR) if os.path.isfile(os.path.join(WORKSPACE_DIR, f))],
+            key=lambda x: os.path.getmtime(os.path.join(WORKSPACE_DIR, x)),
+            reverse=True
+        )
+        
         if files:
+            st.write(f"*(عدد الملفات: {len(files)})*")
             for file in files:
                 file_path = os.path.join(WORKSPACE_DIR, file)
                 size = os.path.getsize(file_path)
-                st.write(f"📄 {file} ({size/1024:.1f} KB)")
+                
+                # عرض معلومات الملف
+                st.markdown(f"""
+                <div class="file-card">
+                    <strong>📄 {file}</strong><br>
+                    <small style="color: #666;">{size/1024:.1f} KB</small>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # قراءة الملف وتجهيز زر التحميل
+                with open(file_path, "rb") as f:
+                    file_bytes = f.read()
+                
+                # تحديد نوع الملف لضمان فتحه بشكل صحيح على جهاز المستخدم
+                mime_type = "application/octet-stream"
+                if file.endswith('.docx'):
+                    mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                elif file.endswith('.xlsx'):
+                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                elif file.endswith('.pdf'):
+                    mime_type = "application/pdf"
+                elif file.endswith('.txt'):
+                    mime_type = "text/plain"
+                
+                # زر التحميل
+                st.download_button(
+                    label=f"⬇️ تحميل",
+                    data=file_bytes,
+                    file_name=file,
+                    mime=mime_type,
+                    key=f"sidebar_dl_{file}_{int(os.path.getmtime(file_path))}",
+                    use_container_width=True
+                )
         else:
-            st.info("لا توجد ملفات")
+            st.info("لا توجد ملفات بعد")
     
     st.markdown("---")
     
-    if st.button("🗑️ مسح المحادثة والذاكرة"):
+    if st.button("🗑️ مسح المحادثة"):
         st.session_state.chat_history = []
-        st.session_state.last_files_created = []
         st.rerun()
 
 # الواجهة الرئيسية
@@ -141,26 +182,6 @@ with chat_container:
             </div>
             """, unsafe_allow_html=True)
 
-# عرض أزرار تحميل الملفات (إذا وجدت)
-if st.session_state.get('last_files_created'):
-    st.markdown("---")
-    st.markdown('<div class="download-box"><strong>📂 الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
-    
-    for file in st.session_state.last_files_created:
-        file_path = os.path.join(WORKSPACE_DIR, file)
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            
-            st.download_button(
-                label=f"⬇️ تحميل الملف: {file}",
-                data=file_bytes,
-                file_name=file,
-                mime="application/octet-stream",
-                key=f"download_btn_{file}",
-                use_container_width=True
-            )
-
 # إدخال الطلب
 st.markdown("---")
 user_input = st.text_input("اكتب طلبك هنا:", placeholder="مثال: أنشئ ملف Excel بأسماء 5 موظفين ورواتبهم", key="input")
@@ -179,35 +200,39 @@ with col3:
 
 # معالجة الطلب
 if submit and user_input:
-    # إضافة رسالة المستخدم
     st.session_state.chat_history.append({
         'role': 'user',
         'content': user_input
     })
     
-    # عرض مؤشر التحميل
+    # حفظ قائمة الملفات قبل التنفيذ لمقارنتها لاحقاً
+    files_before = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
+    
     with st.spinner('جاري تنفيذ المهمة... يرجى الانتظار'):
         try:
             result = st.session_state.agent.execute_task(user_input)
+            
+            # انتظار بسيط لضمان حفظ الملفات على القرص
+            time.sleep(1)
+            
+            files_after = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
+            new_files = files_after - files_before
             
             if result['success']:
                 response = f"✅ **تم التنفيذ بنجاح في المحاولة {result['attempts']}**\n\n"
                 response += f"**المخرجات:**\n```\n{result['final_output']}\n```\n\n"
                 
-                if result.get('files_created'):
-                    response += f"**الملفات المُنشأة:**\n"
-                    for file in result['files_created']:
+                if new_files:
+                    response += f"**الملفات المُنشأة الجديدة:**\n"
+                    for file in new_files:
                         response += f"📄 {file}\n"
-                    # حفظ الملفات في الجلسة لعرض أزرار التحميل
-                    st.session_state.last_files_created = result['files_created']
+                    response += "\n💡 **يمكنك تحميل جميع الملفات (الجديدة والسابقة) من الشريط الجانبي (مساحة العمل).**"
                 else:
-                    st.session_state.last_files_created = []
+                    response += "**لم يتم إنشاء ملفات جديدة.**\n"
             else:
                 response = f"❌ **فشل التنفيذ بعد {result['attempts']} محاولات**\n\n"
                 response += f"**الخطأ:**\n```\n{result.get('error', 'خطأ غير محدد')}\n```\n"
-                st.session_state.last_files_created = []
             
-            # إضافة رد الوكيل
             st.session_state.chat_history.append({
                 'role': 'bot',
                 'content': response
@@ -219,15 +244,13 @@ if submit and user_input:
                 'role': 'bot',
                 'content': error_msg
             })
-            st.session_state.last_files_created = []
     
-    # إعادة رسم الصفحة لتحديث الواجهة
     st.rerun()
 
 # تذييل الصفحة
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v1.1 - الوكيل الذكي للمهام المكتبية</p>
+    <p>Officia v1.3 - الوكيل الذكي للمهام المكتبية | مساحة عمل تراكمية دائمة</p>
 </div>
 """, unsafe_allow_html=True)
