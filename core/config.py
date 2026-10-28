@@ -37,3 +37,4 @@ ALLOWED_LIBRARIES = {
 # 5. التاكد من وجود مجلدات العمل والسجلات
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
+# Updated model to llama-3.3-70b-versatile for better code generation
