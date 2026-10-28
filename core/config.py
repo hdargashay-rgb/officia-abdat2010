@@ -17,11 +17,11 @@ EXECUTION_TIMEOUT = 30
 # 3. اعدادات النماذج (Groq هو الرئيسي الموثوق 100%)
 MODELS = {
     'groq': {
-        'default':'llama-3.3-70b-versatile'
+        'default': 'llama-3.3-70b-versatile'
     },
     'openrouter': {
-        'default': 'google/gemma-4-26b-a4b-it:free',
-        'fallback': 'nvidia/nemotron-3.5-lightning:free'
+        'default': 'meta-llama/llama-3.3-70b-instruct',
+        'fallback': 'qwen/qwen-2.5-72b-instruct'
     },
     'gemini': {
         'default': 'gemini-3.8-flash'
@@ -37,4 +37,3 @@ ALLOWED_LIBRARIES = {
 # 5. التاكد من وجود مجلدات العمل والسجلات
 os.makedirs(WORKSPACE_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
-# Updated model to llama-3.3-70b-versatile for better code generation
