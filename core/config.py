@@ -17,7 +17,7 @@ EXECUTION_TIMEOUT = 30
 # 3. اعدادات النماذج (Groq هو الرئيسي الموثوق 100%)
 MODELS = {
     'groq': {
-        'default': 'qwen/qwen3.8-27b'
+        'default':'llama-3.3-70b-versatile'
     },
     'openrouter': {
         'default': 'google/gemma-4-26b-a4b-it:free',
