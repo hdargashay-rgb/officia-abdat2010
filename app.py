@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.agent import Agent
-from core.config import WORKSPACE_DIR
+from core.config import WORKSPACE_DIR, MODELS
 
 # إعداد الصفحة
 st.set_page_config(
@@ -42,6 +42,13 @@ st.markdown("""
         background-color: #f5f5f5;
         border-right: 4px solid #4caf50;
     }
+    .provider-info {
+        background-color: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 0.3rem;
+        margin-bottom: 0.3rem;
+        font-size: 0.85rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,8 +63,30 @@ with st.sidebar:
     st.markdown("---")
     
     st.subheader("📊 معلومات النظام")
-    st.write(f"**المزود:** Groq")
-    st.write(f"**النموذج:** qwen/qwen3.8-27b")
+    
+    # عرض جميع المزودين والنماذج المتاحة
+    st.markdown("**المزودون والنماذج المتاحة:**")
+    
+    st.markdown(f"""
+    <div class="provider-info">
+    🟢 <b>Groq:</b> {MODELS['groq']['default']}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="provider-info">
+    🟡 <b>OpenRouter:</b> {MODELS['openrouter']['default']}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <div class="provider-info">
+    🔵 <b>Gemini:</b> {MODELS['gemini']['default']}
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم", icon="ℹ️")
+    
     st.write(f"**مجلد العمل:**")
     st.code(WORKSPACE_DIR, language="text")
     
@@ -116,7 +145,7 @@ with col2:
     submit = st.button("🚀 تنفيذ", type="primary")
 
 with col3:
-    if st.button("️ إيقاف"):
+    if st.button("⏹️ إيقاف"):
         st.stop()
 
 # معالجة الطلب
