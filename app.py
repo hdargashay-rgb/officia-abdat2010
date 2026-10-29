@@ -15,7 +15,7 @@ from core.config import WORKSPACE_DIR, MODELS
 # إعداد الصفحة
 st.set_page_config(
     page_title="Officia - الوكيل الذكي",
-    page_icon="",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -64,9 +64,10 @@ st.markdown("""
 if 'agent' not in st.session_state:
     st.session_state.agent = Agent()
     st.session_state.chat_history = []
-    st.session_state.all_files = []
 
+# ==========================================
 # الشريط الجانبي
+# ==========================================
 with st.sidebar:
     st.title("⚙️ الإعدادات")
     st.markdown("---")
@@ -77,7 +78,7 @@ with st.sidebar:
     
     st.markdown(f"""
     <div class="provider-info">
-     <b>Groq:</b> {MODELS['groq']['default']}
+    🟢 <b>Groq:</b> {MODELS['groq']['default']}
     </div>
     """, unsafe_allow_html=True)
     
@@ -100,60 +101,66 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # مساحة العمل التراكمية الدائمة
+    # ==========================================
+    # مساحة العمل - قراءة مباشرة من المجلد (الحل الجذري)
+    # ==========================================
     st.subheader("📁 مساحة العمل")
     
-    if st.session_state.get('all_files'):
-        st.write(f"*(عدد الملفات: {len(st.session_state.all_files)})*")
+    # قراءة جميع الملفات من المجلد مباشرة بغض النظر عن الجلسة
+    workspace_files = []
+    if os.path.exists(WORKSPACE_DIR):
+        workspace_files = [f for f in os.listdir(WORKSPACE_DIR) if os.path.isfile(os.path.join(WORKSPACE_DIR, f))]
+        # ترتيب الملفات من الأحدث إلى الأقدم
+        workspace_files.sort(key=lambda x: os.path.getmtime(os.path.join(WORKSPACE_DIR, x)), reverse=True)
+    
+    if workspace_files:
+        st.write(f"*(عدد الملفات: {len(workspace_files)})*")
         
-        for file in st.session_state.all_files:
+        for file in workspace_files:
             file_path = os.path.join(WORKSPACE_DIR, file)
+            size = os.path.getsize(file_path)
             
-            if os.path.exists(file_path):
-                size = os.path.getsize(file_path)
-                
-                st.markdown(f"""
-                <div class="file-card">
-                    <strong>📄 {file}</strong><br>
-                    <small style="color: #666;">{size/1024:.1f} KB</small>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                with open(file_path, "rb") as f:
-                    file_bytes = f.read()
-                
-                mime_type = "application/octet-stream"
-                if file.endswith('.docx'):
-                    mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif file.endswith('.xlsx'):
-                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                elif file.endswith('.pdf'):
-                    mime_type = "application/pdf"
-                elif file.endswith('.txt'):
-                    mime_type = "text/plain"
-                
-                st.download_button(
-                    label=f"️ تحميل",
-                    data=file_bytes,
-                    file_name=file,
-                    mime=mime_type,
-                    key=f"download_btn_{file}",
-                    use_container_width=True
-                )
-            else:
-                st.warning(f"⚠️ الملف {file} غير موجود فعلياً")
+            st.markdown(f"""
+            <div class="file-card">
+                <strong>📄 {file}</strong><br>
+                <small style="color: #666;">{size/1024:.1f} KB</small>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            with open(file_path, "rb") as f:
+                file_bytes = f.read()
+            
+            mime_type = "application/octet-stream"
+            if file.endswith('.docx'):
+                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            elif file.endswith('.xlsx'):
+                mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            elif file.endswith('.pdf'):
+                mime_type = "application/pdf"
+            elif file.endswith('.txt'):
+                mime_type = "text/plain"
+            
+            st.download_button(
+                label=f"⬇️ تحميل",
+                data=file_bytes,
+                file_name=file,
+                mime=mime_type,
+                key=f"dl_{file}_{int(os.path.getmtime(file_path))}",
+                use_container_width=True
+            )
     else:
-        st.info("لا توجد ملفات في هذه الجلسة بعد")
+        st.info("لا توجد ملفات بعد")
     
     st.markdown("---")
     
-    if st.button("🗑️ مسح المحادثة والذاكرة"):
+    if st.button("🗑️ مسح المحادثة"):
         st.session_state.chat_history = []
-        st.session_state.all_files = []
         st.rerun()
 
+# ==========================================
 # الواجهة الرئيسية
-st.title(" Officia - الوكيل الذكي للمهام المكتبية")
+# ==========================================
+st.title("🤖 Officia - الوكيل الذكي للمهام المكتبية")
 st.markdown("مرحباً بك! أنا مساعدك الذكي لإنجاز المهام المكتبية. اكتب طلبك بالعربية وسأنفذه لك.")
 
 # عرض المحادثة
@@ -170,7 +177,7 @@ with chat_container:
         else:
             st.markdown(f"""
             <div class="chat-message bot-message">
-                <strong> Officia:</strong><br>
+                <strong>🤖 Officia:</strong><br>
                 {message['content']}
             </div>
             """, unsafe_allow_html=True)
@@ -204,7 +211,7 @@ if submit and user_input:
         try:
             result = st.session_state.agent.execute_task(user_input)
             
-            time.sleep(1)
+            time.sleep(1) # انتظار بسيط لحفظ الملفات
             
             files_after = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
             new_files = files_after - files_before
@@ -214,14 +221,10 @@ if submit and user_input:
                 response += f"**المخرجات:**\n```\n{result['final_output']}\n```\n\n"
                 
                 if new_files:
-                    for f in new_files:
-                        if f not in st.session_state.all_files:
-                            st.session_state.all_files.append(f)
-                    
                     response += f"**الملفات المُنشأة الجديدة:**\n"
                     for file in new_files:
                         response += f"📄 {file}\n"
-                    response += "\n💡 **يمكنك تحميل جميع الملفات من الشريط الجانبي (مساحة العمل).**"
+                    response += "\n💡 **يمكنك تحميل الملف فوراً من الشريط الجانبي (مساحة العمل).**"
                 else:
                     response += "**لم يتم إنشاء ملفات جديدة.**\n"
             else:
@@ -246,6 +249,6 @@ if submit and user_input:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v1.4 - الوكيل الذكي للمهام المكتبية | مساحة عمل تراكمية موثوقة</p>
+    <p>Officia v1.5 - الوكيل الذكي للمهام المكتبية | قراءة مباشرة ومساحة عمل دائمة</p>
 </div>
 """, unsafe_allow_html=True)
