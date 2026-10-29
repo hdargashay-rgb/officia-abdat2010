@@ -51,11 +51,11 @@ st.markdown("""
         font-size: 0.85rem;
     }
     .file-card {
-        background-color: #ffffff;
-        padding: 0.8rem;
+        background-color: #e8f5e9;
+        padding: 1rem;
         border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
-        margin-bottom: 0.8rem;
+        border-right: 4px solid #4caf50;
+        margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -66,7 +66,7 @@ if 'agent' not in st.session_state:
     st.session_state.chat_history = []
 
 # ==========================================
-# الشريط الجانبي
+# الشريط الجانبي (بسيط - أسماء الملفات فقط)
 # ==========================================
 with st.sidebar:
     st.title("⚙️ الإعدادات")
@@ -94,60 +94,26 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم", icon="ℹ️")
+    st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم", icon="️")
     
     st.write(f"**مجلد العمل:**")
     st.code(WORKSPACE_DIR, language="text")
     
     st.markdown("---")
     
-    # ==========================================
-    # مساحة العمل - قراءة مباشرة من المجلد (الحل الجذري)
-    # ==========================================
-    st.subheader("📁 مساحة العمل")
+    # عرض بسيط لأسماء الملفات فقط (بدون أزرار تحميل)
+    st.subheader("📁 الملفات الموجودة")
     
-    # قراءة جميع الملفات من المجلد مباشرة بغض النظر عن الجلسة
     workspace_files = []
     if os.path.exists(WORKSPACE_DIR):
         workspace_files = [f for f in os.listdir(WORKSPACE_DIR) if os.path.isfile(os.path.join(WORKSPACE_DIR, f))]
-        # ترتيب الملفات من الأحدث إلى الأقدم
         workspace_files.sort(key=lambda x: os.path.getmtime(os.path.join(WORKSPACE_DIR, x)), reverse=True)
     
     if workspace_files:
-        st.write(f"*(عدد الملفات: {len(workspace_files)})*")
-        
         for file in workspace_files:
             file_path = os.path.join(WORKSPACE_DIR, file)
             size = os.path.getsize(file_path)
-            
-            st.markdown(f"""
-            <div class="file-card">
-                <strong>📄 {file}</strong><br>
-                <small style="color: #666;">{size/1024:.1f} KB</small>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            
-            mime_type = "application/octet-stream"
-            if file.endswith('.docx'):
-                mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            elif file.endswith('.xlsx'):
-                mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            elif file.endswith('.pdf'):
-                mime_type = "application/pdf"
-            elif file.endswith('.txt'):
-                mime_type = "text/plain"
-            
-            st.download_button(
-                label=f"⬇️ تحميل",
-                data=file_bytes,
-                file_name=file,
-                mime=mime_type,
-                key=f"dl_{file}_{int(os.path.getmtime(file_path))}",
-                use_container_width=True
-            )
+            st.write(f"📄 {file} ({size/1024:.1f} KB)")
     else:
         st.info("لا توجد ملفات بعد")
     
@@ -182,6 +148,45 @@ with chat_container:
             </div>
             """, unsafe_allow_html=True)
 
+# ==========================================
+# عرض أزرار التحميل في المنطقة الرئيسية
+# ==========================================
+workspace_files = []
+if os.path.exists(WORKSPACE_DIR):
+    workspace_files = [f for f in os.listdir(WORKSPACE_DIR) if os.path.isfile(os.path.join(WORKSPACE_DIR, f))]
+    workspace_files.sort(key=lambda x: os.path.getmtime(os.path.join(WORKSPACE_DIR, x)), reverse=True)
+
+if workspace_files:
+    st.markdown("---")
+    st.markdown('<div class="file-card"><strong>📂 الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
+    
+    cols = st.columns(2)
+    for idx, file in enumerate(workspace_files):
+        file_path = os.path.join(WORKSPACE_DIR, file)
+        
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+        
+        mime_type = "application/octet-stream"
+        if file.endswith('.docx'):
+            mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif file.endswith('.xlsx'):
+            mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif file.endswith('.pdf'):
+            mime_type = "application/pdf"
+        elif file.endswith('.txt'):
+            mime_type = "text/plain"
+        
+        with cols[idx % 2]:
+            st.download_button(
+                label=f"⬇️ تحميل {file}",
+                data=file_bytes,
+                file_name=file,
+                mime=mime_type,
+                key=f"main_dl_{file}_{int(os.path.getmtime(file_path))}",
+                use_container_width=True
+            )
+
 # إدخال الطلب
 st.markdown("---")
 user_input = st.text_input("اكتب طلبك هنا:", placeholder="مثال: أنشئ ملف Excel بأسماء 5 موظفين ورواتبهم", key="input")
@@ -211,7 +216,7 @@ if submit and user_input:
         try:
             result = st.session_state.agent.execute_task(user_input)
             
-            time.sleep(1) # انتظار بسيط لحفظ الملفات
+            time.sleep(1)
             
             files_after = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
             new_files = files_after - files_before
@@ -224,7 +229,7 @@ if submit and user_input:
                     response += f"**الملفات المُنشأة الجديدة:**\n"
                     for file in new_files:
                         response += f"📄 {file}\n"
-                    response += "\n💡 **يمكنك تحميل الملف فوراً من الشريط الجانبي (مساحة العمل).**"
+                    response += "\n💡 **يمكنك تحميل جميع الملفات من الأزرار أعلاه.**"
                 else:
                     response += "**لم يتم إنشاء ملفات جديدة.**\n"
             else:
@@ -249,6 +254,6 @@ if submit and user_input:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v1.5 - الوكيل الذكي للمهام المكتبية | قراءة مباشرة ومساحة عمل دائمة</p>
+    <p>Officia v2.0 - الوكيل الذكي للمهام المكتبية | أزرار تحميل في المنطقة الرئيسية</p>
 </div>
 """, unsafe_allow_html=True)
