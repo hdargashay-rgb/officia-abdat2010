@@ -15,7 +15,7 @@ from core.config import WORKSPACE_DIR, MODELS
 # إعداد الصفحة
 st.set_page_config(
     page_title="Officia - الوكيل الذكي",
-    page_icon="🤖",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -72,7 +72,7 @@ with st.sidebar:
     st.title("⚙️ الإعدادات")
     st.markdown("---")
     
-    st.subheader("📊 معلومات النظام")
+    st.subheader(" معلومات النظام")
     
     st.markdown("**المزودون والنماذج المتاحة:**")
     
@@ -94,14 +94,15 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
     
-    st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم", icon="️")
+    # ✅ تم إصلاح هذا السطر (حذف icon)
+    st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم")
     
     st.write(f"**مجلد العمل:**")
     st.code(WORKSPACE_DIR, language="text")
     
     st.markdown("---")
     
-    # عرض بسيط لأسماء الملفات فقط (بدون أزرار تحميل)
+    # عرض بسيط لأسماء الملفات فقط
     st.subheader("📁 الملفات الموجودة")
     
     workspace_files = []
@@ -158,7 +159,7 @@ if os.path.exists(WORKSPACE_DIR):
 
 if workspace_files:
     st.markdown("---")
-    st.markdown('<div class="file-card"><strong>📂 الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
+    st.markdown('<div class="file-card"><strong> الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
     
     cols = st.columns(2)
     for idx, file in enumerate(workspace_files):
@@ -197,7 +198,7 @@ with col1:
     pass
 
 with col2:
-    submit = st.button("🚀 تنفيذ", type="primary")
+    submit = st.button(" تنفيذ", type="primary")
 
 with col3:
     if st.button("⏹️ إيقاف"):
