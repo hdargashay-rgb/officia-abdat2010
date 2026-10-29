@@ -15,7 +15,7 @@ from core.config import WORKSPACE_DIR, MODELS
 # إعداد الصفحة
 st.set_page_config(
     page_title="Officia - الوكيل الذكي",
-    page_icon="🤖",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -64,6 +64,7 @@ st.markdown("""
 if 'agent' not in st.session_state:
     st.session_state.agent = Agent()
     st.session_state.chat_history = []
+    st.session_state.all_files = []
 
 # الشريط الجانبي
 with st.sidebar:
@@ -76,7 +77,7 @@ with st.sidebar:
     
     st.markdown(f"""
     <div class="provider-info">
-    🟢 <b>Groq:</b> {MODELS['groq']['default']}
+     <b>Groq:</b> {MODELS['groq']['default']}
     </div>
     """, unsafe_allow_html=True)
     
@@ -99,26 +100,18 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # ==========================================
-    # مساحة العمل التراكمية الدائمة مع أزرار التحميل
-    # ==========================================
+    # مساحة العمل التراكمية الدائمة
     st.subheader("📁 مساحة العمل")
     
-    if os.path.exists(WORKSPACE_DIR):
-        # ترتيب الملفات من الأحدث إلى الأقدم
-        files = sorted(
-            [f for f in os.listdir(WORKSPACE_DIR) if os.path.isfile(os.path.join(WORKSPACE_DIR, f))],
-            key=lambda x: os.path.getmtime(os.path.join(WORKSPACE_DIR, x)),
-            reverse=True
-        )
+    if st.session_state.get('all_files'):
+        st.write(f"*(عدد الملفات: {len(st.session_state.all_files)})*")
         
-        if files:
-            st.write(f"*(عدد الملفات: {len(files)})*")
-            for file in files:
-                file_path = os.path.join(WORKSPACE_DIR, file)
+        for file in st.session_state.all_files:
+            file_path = os.path.join(WORKSPACE_DIR, file)
+            
+            if os.path.exists(file_path):
                 size = os.path.getsize(file_path)
                 
-                # عرض معلومات الملف
                 st.markdown(f"""
                 <div class="file-card">
                     <strong>📄 {file}</strong><br>
@@ -126,11 +119,9 @@ with st.sidebar:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # قراءة الملف وتجهيز زر التحميل
                 with open(file_path, "rb") as f:
                     file_bytes = f.read()
                 
-                # تحديد نوع الملف لضمان فتحه بشكل صحيح على جهاز المستخدم
                 mime_type = "application/octet-stream"
                 if file.endswith('.docx'):
                     mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -141,26 +132,28 @@ with st.sidebar:
                 elif file.endswith('.txt'):
                     mime_type = "text/plain"
                 
-                # زر التحميل
                 st.download_button(
-                    label=f"⬇️ تحميل",
+                    label=f"️ تحميل",
                     data=file_bytes,
                     file_name=file,
                     mime=mime_type,
-                    key=f"sidebar_dl_{file}_{int(os.path.getmtime(file_path))}",
+                    key=f"download_btn_{file}",
                     use_container_width=True
                 )
-        else:
-            st.info("لا توجد ملفات بعد")
+            else:
+                st.warning(f"⚠️ الملف {file} غير موجود فعلياً")
+    else:
+        st.info("لا توجد ملفات في هذه الجلسة بعد")
     
     st.markdown("---")
     
-    if st.button("🗑️ مسح المحادثة"):
+    if st.button("🗑️ مسح المحادثة والذاكرة"):
         st.session_state.chat_history = []
+        st.session_state.all_files = []
         st.rerun()
 
 # الواجهة الرئيسية
-st.title("🤖 Officia - الوكيل الذكي للمهام المكتبية")
+st.title(" Officia - الوكيل الذكي للمهام المكتبية")
 st.markdown("مرحباً بك! أنا مساعدك الذكي لإنجاز المهام المكتبية. اكتب طلبك بالعربية وسأنفذه لك.")
 
 # عرض المحادثة
@@ -177,7 +170,7 @@ with chat_container:
         else:
             st.markdown(f"""
             <div class="chat-message bot-message">
-                <strong>🤖 Officia:</strong><br>
+                <strong> Officia:</strong><br>
                 {message['content']}
             </div>
             """, unsafe_allow_html=True)
@@ -205,14 +198,12 @@ if submit and user_input:
         'content': user_input
     })
     
-    # حفظ قائمة الملفات قبل التنفيذ لمقارنتها لاحقاً
     files_before = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
     
     with st.spinner('جاري تنفيذ المهمة... يرجى الانتظار'):
         try:
             result = st.session_state.agent.execute_task(user_input)
             
-            # انتظار بسيط لضمان حفظ الملفات على القرص
             time.sleep(1)
             
             files_after = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
@@ -223,10 +214,14 @@ if submit and user_input:
                 response += f"**المخرجات:**\n```\n{result['final_output']}\n```\n\n"
                 
                 if new_files:
+                    for f in new_files:
+                        if f not in st.session_state.all_files:
+                            st.session_state.all_files.append(f)
+                    
                     response += f"**الملفات المُنشأة الجديدة:**\n"
                     for file in new_files:
                         response += f"📄 {file}\n"
-                    response += "\n💡 **يمكنك تحميل جميع الملفات (الجديدة والسابقة) من الشريط الجانبي (مساحة العمل).**"
+                    response += "\n💡 **يمكنك تحميل جميع الملفات من الشريط الجانبي (مساحة العمل).**"
                 else:
                     response += "**لم يتم إنشاء ملفات جديدة.**\n"
             else:
@@ -251,6 +246,6 @@ if submit and user_input:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v1.3 - الوكيل الذكي للمهام المكتبية | مساحة عمل تراكمية دائمة</p>
+    <p>Officia v1.4 - الوكيل الذكي للمهام المكتبية | مساحة عمل تراكمية موثوقة</p>
 </div>
 """, unsafe_allow_html=True)
