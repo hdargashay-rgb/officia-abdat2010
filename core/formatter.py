@@ -1074,3 +1074,86 @@ def create_professional_invoice(
     
     wb.save(output_path)
     return output_path
+
+# ==========================================
+# دالة شاملة لإنشاء خطاب احترافي (Wrapper)
+# ==========================================
+def generate_professional_letter(
+    organization_name,
+    title,
+    recipient,
+    subject,
+    paragraphs,
+    table_headers=None,
+    table_data=None,
+    table_caption=None,
+    closing_text="وتفضلوا بقبول فائق الاحترام والتقدير،،",
+    signature_name=None,
+    signature_title=None,
+    note=None,
+    output_dir=None,
+    filename=None
+):
+    """
+    دالة شاملة لإنشاء خطاب احترافي كامل في استدعاء واحد
+    
+    المعاملات:
+    - organization_name: اسم المؤسسة
+    - title: عنوان الخطاب
+    - recipient: المرسل إليه
+    - subject: الموضوع
+    - paragraphs: قائمة فقرات المحتوى
+    - table_headers: عناوين الجدول (اختياري)
+    - table_data: بيانات الجدول (اختياري)
+    - table_caption: عنوان الجدول (اختياري)
+    - closing_text: نص الخاتمة
+    - signature_name: اسم الموقع
+    - signature_title: صفة الموقع
+    - note: ملاحظة/تنبيه
+    - output_dir: مسار الحفظ
+    - filename: اسم الملف
+    """
+    from core.config import WORKSPACE_DIR
+    
+    doc = Document()
+    setup_document(doc)
+    
+    # الرأس
+    add_elegant_header(doc, organization_name, title)
+    
+    # المعلومات
+    add_document_info(doc, recipient=recipient, subject=subject)
+    
+    # التحية
+    add_greeting(doc)
+    
+    # المحتوى
+    add_content_paragraphs(doc, paragraphs, numbered=True)
+    
+    # الجدول (إن وجد)
+    if table_headers and table_data:
+        create_professional_table(doc, table_headers, table_data, table_caption)
+    
+    # الخاتمة والتوقيع
+    add_closing(doc, closing_text, signature_name, signature_title)
+    
+    # الملاحظة
+    if note:
+        add_note(doc, note)
+    
+    # التذييل
+    add_footer(doc)
+    
+    # الحفظ
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_title = title[:30].replace(' ', '_').replace('/', '-')
+        filename = f"خطاب_{safe_title}"
+    
+    filename = get_unique_filename(save_dir, filename, 'docx')
+    output_path = os.path.join(save_dir, filename)
+    
+    doc.save(output_path)
+    return output_path
