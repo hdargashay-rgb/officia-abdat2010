@@ -1,7 +1,6 @@
 """
 Agent Loop - الحلقة الذكية للوكيل
-تربط بين النموذج اللغوي و Executor مع التصحيح الذاتي
-متوافق تماماً مع Officia v2.1 و formatter.py
+يوجه النموذج لاستخدام formatter.py لإنشاء مستندات احترافية
 """
 from core.llm_client import LLMClient
 from core.executor import Executor
@@ -63,45 +62,31 @@ class Agent:
     def _build_code_prompt(self, user_request: str) -> str:
         return f"""أنت وكيل ذكي متخصص في إنشاء المستندات المكتبية الاحترافية باللغة العربية.
 
-مهمتك: كتابة كود Python كامل لإنشاء الملفات المطلوبة.
-
 ==========================================
-القواعد الإلزامية:
+⚠️ قواعد إلزامية صارمة:
 ==========================================
 
-1. **استخدم مكتبة التنسيق الاحترافي** (موجودة مسبقاً):
+1. **يجب استخدام مكتبة core.formatter** لإنشاء أي ملف:
    - للخطابات: `from core.formatter import create_professional_letter`
-   - للتقارير: `from core.formatter import create_excel_report`
-   - للفواتير: `from core.formatter import create_invoice`
+   - لتقارير الأصول الثابتة: `from core.formatter import create_fixed_asset_report`
+   - لتقارير Excel متعددة الأوراق: `from core.formatter import create_multi_sheet_excel`
+   - للفواتير: `from core.formatter import create_professional_invoice`
 
-2. **مسار الحفظ**: استخدم `output_dir="{WORKSPACE_DIR}"` في جميع الدوال.
+2. **مسار الحفظ**: استخدم دائماً `output_dir="{WORKSPACE_DIR}"`
 
-3. **الصياغة الرسمية للخطابات**:
-   - استخدم عبارات مثل: "بالإشارة إلى الموضوع أعلاه"، "نرجو التكرم بـ"، "وتفضلوا بقبول فائق الاحترام والتقدير"
-   - بنية الخطاب: عنوان → تاريخ → مرسل إليه → موضوع → تحية → مقدمة → محتوى → خاتمة → توقيع
-   - استخدم جداول منسقة للبيانات الرقمية
-
-4. **التنسيق الاحترافي**:
-   - ألوان رسمية: أزرق داكن للعناوين
-   - خطوط Calibri بحجم 12
-   - محاذاة عربية صحيحة (RTL)
-   - جداول برؤوس ملونة
-
-5. **اطبع اسم الملف المنشأ** في النهاية باستخدام:
+3. **اطبع اسم الملف في النهاية**:
 ```python
    print(f"SUCCESS: {{output_path}}")
 ```
 
-6. **المكتبات المسموحة**:
-   openpyxl, pandas, numpy, python-docx, Pillow, os, sys, math, datetime, json, re, pathlib, shutil, tempfile, core.formatter
+4. **المكتبات المسموحة**:
+   core.formatter, openpyxl, pandas, numpy, python-docx, Pillow, os, sys, math, datetime, json, re, pathlib, shutil, tempfile
 
-7. **لا تستخدم**: input(), subprocess, os.system, eval(), exec()
+5. **ممنوع**: input(), subprocess, os.system, eval(), exec(), os.environ
 
 ==========================================
-أمثلة توضيحية:
+مثال 1: خطاب رسمي
 ==========================================
-
-**مثال 1: إنشاء خطاب رسمي**
 ```python
 from core.formatter import create_professional_letter
 
@@ -110,8 +95,8 @@ output_path = create_professional_letter(
     subject="مطالبة بمتأخرات الأجرة الشهرية",
     content_paragraphs=[
         "بالإشارة إلى الموضوع أعلاه، نتقدم إليكم بهذا الخطاب للمطالبة بالمستحقات المتأخرة.",
-        "حيث أن إجمالي المبلغ المستحق يبلغ 120,000 ريال، عبارة عن أربعة شيكات شهرية.",
-        "نرجو التكرم بسداد المبلغ المستحق في فترة أقصاها أسبوع من تاريخ هذا الخطاب."
+        "حيث أن إجمالي المبلغ المستحق يبلغ 120,000 ريال.",
+        "نرجو التكرم بسداد المبلغ المستحق في فترة أقصاها أسبوع."
     ],
     table_headers=["الشهر", "رقم الشيك", "القيمة", "البنك"],
     table_data=[
@@ -121,88 +106,178 @@ output_path = create_professional_letter(
         ["أكتوبر", "0000614", "30000", "دخان"]
     ],
     table_caption="تفاصيل الشيكات المستحقة",
-    closing_note="يرجى سداد المستحقات في فترة أقصاها أسبوع من تاريخه",
-    sender_name="المحامي",
+    closing_note="يرجى السداد خلال أسبوع",
+    sender_name="المحامي عبدالله",
     sender_organization="مكتب المحاماة",
     output_dir="{WORKSPACE_DIR}"
 )
 print(f"SUCCESS: {{output_path}}")
 ```
 
-**مثال 2: إنشاء تقرير Excel**
+==========================================
+مثال 2: تقرير أصول ثابتة احترافي
+==========================================
 ```python
-from core.formatter import create_excel_report
+from core.formatter import create_fixed_asset_report
 
-headers = ["اسم الموظف", "القسم", "الراتب الأساسي", "البدلات", "الإجمالي"]
-data = [
-    ["أحمد محمد", "المبيعات", 5000, 1000, 6000],
-    ["محمد علي", "المحاسبة", 6000, 1200, 7200],
-    ["فاطمة حسن", "الموارد البشرية", 5500, 1100, 6600],
-    ["خالد سعيد", "تقنية المعلومات", 7000, 1400, 8400],
-    ["نورة أحمد", "الإدارة", 8000, 1600, 9600]
+sections = [
+    {{
+        'name': 'Hardware & Software',
+        'depreciation_rate': 0.3333,
+        'assets': [
+            {{
+                'sno': 2,
+                'supplier': 'ATCOM TECHNOLOGY',
+                'description': 'AVAYA IP TELEPHONE',
+                'fa_no': '',
+                'book_value': 5250.00,
+                'addition': 0,
+                'disposal': 0,
+                'purchase_date': '3/24/22'
+            }},
+            {{
+                'sno': 3,
+                'supplier': 'THME HONEST',
+                'description': 'LENOVO COMPUTER',
+                'fa_no': '',
+                'book_value': 5480.00,
+                'addition': 0,
+                'disposal': 0,
+                'purchase_date': '3/28/22'
+            }}
+        ]
+    }},
+    {{
+        'name': 'Tools & Equipment',
+        'depreciation_rate': 0.20,
+        'assets': [
+            {{
+                'sno': 1,
+                'supplier': 'XPEL INC USA',
+                'description': 'XPEL FILM CUTTING MACHINE',
+                'fa_no': '',
+                'book_value': 7861.00,
+                'addition': 0,
+                'disposal': 0,
+                'purchase_date': '1/12/22'
+            }}
+        ]
+    }}
 ]
 
-output_path = create_excel_report(
-    headers=headers,
-    data=data,
-    title="تقرير رواتب الموظفين - نوفمبر 2026",
-    sheet_name="الرواتب",
-    add_chart=True,
-    freeze_panes=True,
-    auto_filter=True,
-    output_dir="{WORKSPACE_DIR}"
+output_path = create_fixed_asset_report(
+    company_name="Radiant Car Care",
+    year=2025,
+    sections=sections,
+    output_dir="{WORKSPACE_DIR}",
+    filename="Fixed_Asset_2025"
 )
 print(f"SUCCESS: {{output_path}}")
 ```
 
 ==========================================
-الآن، نفذ الطلب التالي:
+مثال 3: تقرير Excel متعدد الأوراق
+==========================================
+```python
+from core.formatter import create_multi_sheet_excel
+
+sheets_config = [
+    {{
+        'name': 'الموظفون',
+        'title': 'بيانات الموظفين',
+        'headers': ['رقم الموظف', 'الاسم', 'القسم', 'الراتب'],
+        'data': [
+            ['M001', 'أحمد محمد', 'مبيعات', 5000],
+            ['M002', 'محمد علي', 'محاسبة', 6000],
+            ['M003', 'فاطمة حسن', 'موارد بشرية', 5500]
+        ]
+    }},
+    {{
+        'name': 'الحضور',
+        'title': 'سجل الحضور',
+        'headers': ['رقم الموظف', 'أيام الحضور', 'أيام الغياب'],
+        'data': [
+            ['M001', 20, 2],
+            ['M002', 22, 0],
+            ['M003', 18, 4]
+        ]
+    }}
+]
+
+output_path = create_multi_sheet_excel(
+    sheets_config,
+    output_dir="{WORKSPACE_DIR}",
+    filename="تقرير_الموظفين"
+)
+print(f"SUCCESS: {{output_path}}")
+```
+
+==========================================
+مثال 4: فاتورة احترافية
+==========================================
+```python
+from core.formatter import create_professional_invoice
+
+items = [
+    {{'description': 'خدمة غسيل سيارات', 'quantity': 5, 'unit_price': 100}},
+    {{'description': 'خدمة تلميع', 'quantity': 2, 'unit_price': 250}},
+    {{'description': 'خدمة حماية الطلاء', 'quantity': 1, 'unit_price': 1500}}
+]
+
+output_path = create_professional_invoice(
+    company_name="Radiant Car Care",
+    client_name="أحمد محمد",
+    invoice_number="INV-2025-001",
+    invoice_date="2025-11-03",
+    items=items,
+    tax_rate=0.05,
+    notes="شكراً لتعاملكم معنا",
+    output_dir="{WORKSPACE_DIR}",
+    filename="فاتورة_001"
+)
+print(f"SUCCESS: {{output_path}}")
+```
+
+==========================================
+الآن نفذ الطلب التالي:
 ==========================================
 
 {user_request}
 
-اكتب كود Python كامل ومنسق. ابدأ بـ ```python وانهِ بـ ```"""
+اكتب كود Python كامل يستخدم core.formatter. ابدأ بـ ```python وانهِ بـ ```"""
 
     def _build_fix_prompt(self, original_request: str, previous_code: str, error: str) -> str:
-        return f"""❌ الكود السابق فشل في التنفيذ.
+        return f"""❌ الكود السابق فشل.
 
-الطلب الأصلي:
-{original_request}
+الطلب: {original_request}
 
 الكود الذي فشل:
 ```python
 {previous_code}
 ```
 
-رسالة الخطأ:
-{error}
+الخطأ: {error}
 
 ==========================================
 تعليمات التصحيح:
 ==========================================
-1. حلل الخطأ بعناية
-2. تأكد من استخدام `from core.formatter import ...` بشكل صحيح
-3. تأكد من تمرير `output_dir="{WORKSPACE_DIR}"` في دالة الإنشاء
-4. تأكد من طباعة اسم الملف في النهاية: `print(f"SUCCESS: {{output_path}}")`
-5. لا تغير المنطق الأساسي، فقط صحح الخطأ
+1. استخدم `from core.formatter import ...` (إحدى الدوال الأربع)
+2. تأكد من `output_dir="{WORKSPACE_DIR}"`
+3. اطبع: `print(f"SUCCESS: {{output_path}}")`
+4. لا تكتب كود openpyxl أو python-docx مباشرة
 
-أعد كتابة الكود المُصحح بالكامل. ابدأ بـ ```python وانهِ بـ ```"""
+أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
 
     def _extract_code(self, response: str) -> str:
         """استخراج كود Python من رد النموذج"""
-        # محاولة استخراج الكود من بين علامات ```python
         if '```python' in response:
             start = response.find('```python') + 9
             end = response.find('```', start)
             if end != -1:
                 return response[start:end].strip()
-        
-        # محاولة بديلة: البحث عن ``` فقط
         if '```' in response:
             start = response.find('```') + 3
             end = response.find('```', start)
             if end != -1:
                 return response[start:end].strip()
-        
-        # إذا لم توجد علامات، نعتبر أن الرد كله كود
         return response.strip()
