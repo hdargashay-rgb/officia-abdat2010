@@ -451,3 +451,626 @@ def add_footer(doc, footer_text="Officia - الوكيل الذكي للمهام 
     footer_text_run.font.size = Pt(SIZES['footer'])
     footer_text_run.font.color.rgb = RGBColor.from_string(PALETTE['slate'])
     footer_text_run.font.italic = True
+    # ==========================================
+# دوال Excel الاحترافية
+# ==========================================
+def create_excel_sheet(ws, headers, data, title=None, 
+                       start_row=1, freeze_row=True,
+                       auto_filter=True, table_style=True):
+    """
+    إنشاء ورقة Excel منسقة باحترافية كاملة
+    
+    تطبق: RTL، عناوين ملونة، حدود، auto-fit، تجميد، فلاتر
+    """
+    ws.sheet_view.rightToLeft = True
+    ws.sheet_view.showGridLines = True
+    
+    current_row = start_row
+    
+    # العنوان
+    if title:
+        ws.merge_cells(
+            start_row=current_row, start_column=1,
+            end_row=current_row, end_column=len(headers)
+        )
+        title_cell = ws.cell(row=current_row, column=1, value=title)
+        title_cell.font = Font(
+            name=FONTS['title'],
+            size=SIZES['title'],
+            bold=True,
+            color=PALETTE['royal_dark']
+        )
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        title_cell.fill = PatternFill(
+            start_color=PALETTE['royal_pale'],
+            end_color=PALETTE['royal_pale'],
+            fill_type='solid'
+        )
+        ws.row_dimensions[current_row].height = 35
+        current_row += 2
+    
+    # رؤوس الأعمدة
+    header_fill = PatternFill(
+        start_color=PALETTE['royal_dark'],
+        end_color=PALETTE['royal_mid'],
+        fill_type='solid'
+    )
+    header_font = Font(
+        name=FONTS['heading'],
+        size=SIZES['body'],
+        bold=True,
+        color=PALETTE['white']
+    )
+    header_alignment = Alignment(
+        horizontal='center',
+        vertical='center',
+        wrap_text=True
+    )
+    
+    header_border = Border(
+        left=Side(style='thin', color=PALETTE['silver']),
+        right=Side(style='thin', color=PALETTE['silver']),
+        top=Side(style='thin', color=PALETTE['silver']),
+        bottom=Side(style='medium', color=PALETTE['gold'])
+    )
+    
+    header_row = current_row
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col_num, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = header_border
+    
+    ws.row_dimensions[header_row].height = 28
+    data_start_row = header_row + 1
+    
+    # البيانات
+    data_font = Font(name=FONTS['body'], size=SIZES['body'])
+    data_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    
+    even_fill = PatternFill(start_color=PALETTE['row_even'], end_color=PALETTE['row_even'], fill_type='solid')
+    odd_fill = PatternFill(start_color=PALETTE['cream'], end_color=PALETTE['cream'], fill_type='solid')
+    
+    data_border = Border(
+        left=Side(style='thin', color=PALETTE['silver']),
+        right=Side(style='thin', color=PALETTE['silver']),
+        top=Side(style='thin', color=PALETTE['silver']),
+        bottom=Side(style='thin', color=PALETTE['silver'])
+    )
+    
+    for row_idx, row_data in enumerate(data):
+        for col_idx, cell_data in enumerate(row_data, 1):
+            cell = ws.cell(row=data_start_row + row_idx, column=col_idx, value=cell_data)
+            cell.font = data_font
+            cell.alignment = data_alignment
+            cell.border = data_border
+            
+            cell.fill = even_fill if row_idx % 2 == 0 else odd_fill
+            
+            if isinstance(cell_data, (int, float)):
+                cell.number_format = '#,##0.00'
+    
+    # auto-fit ذكي
+    for col_num in range(1, len(headers) + 1):
+        header_width = len(str(headers[col_num - 1])) * 2.2
+        max_data_width = 0
+        
+        for row in ws.iter_rows(
+            min_row=data_start_row, 
+            max_row=data_start_row + len(data) - 1,
+            min_col=col_num, 
+            max_col=col_num
+        ):
+            for cell in row:
+                if cell.value:
+                    cell_width = len(str(cell.value)) * 1.5
+                    max_data_width = max(max_data_width, cell_width)
+        
+        final_width = max(header_width, max_data_width) + 4
+        final_width = min(final_width, 50)
+        final_width = max(final_width, 12)
+        
+        ws.column_dimensions[get_column_letter(col_num)].width = final_width
+    
+    # تجميد
+    if freeze_row:
+        ws.freeze_panes = f'A{data_start_row}'
+    
+    # فلتر
+    if auto_filter and len(data) > 0:
+        last_row = data_start_row + len(data) - 1
+        last_col = get_column_letter(len(headers))
+        ws.auto_filter.ref = f'A{header_row}:{last_col}{last_row}'
+    
+    return data_start_row
+
+
+def create_multi_sheet_excel(
+    sheets_config,
+    output_dir=None,
+    filename=None
+):
+    """
+    إنشاء ملف Excel متعدد الأوراق
+    
+    sheets_config: قائمة من القواميس:
+    - name: اسم الورقة
+    - title: عنوان الورقة (اختياري)
+    - headers: قائمة العناوين
+    - data: قائمة البيانات
+    """
+    from core.config import WORKSPACE_DIR
+    
+    wb = openpyxl.Workbook()
+    
+    for idx, sheet_cfg in enumerate(sheets_config):
+        if idx == 0:
+            ws = wb.active
+            ws.title = sheet_cfg['name'][:31]
+        else:
+            ws = wb.create_sheet(title=sheet_cfg['name'][:31])
+        
+        create_excel_sheet(
+            ws=ws,
+            headers=sheet_cfg['headers'],
+            data=sheet_cfg['data'],
+            title=sheet_cfg.get('title'),
+            freeze_row=True,
+            auto_filter=True
+        )
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
+    
+    filename = get_unique_filename(save_dir, filename, 'xlsx')
+    output_path = os.path.join(save_dir, filename)
+    
+    wb.save(output_path)
+    return output_path
+
+
+def create_fixed_asset_report(
+    company_name,
+    year,
+    sections,
+    output_dir=None,
+    filename=None
+):
+    """
+    إنشاء تقرير أصول ثابتة احترافي كامل
+    (مطابق لملف FIXED ASSET LISTING المرجعي)
+    
+    sections: قائمة من القواميس:
+    - name: اسم القسم
+    - depreciation_rate: نسبة الإهلاك
+    - assets: قائمة الأصول
+    """
+    from core.config import WORKSPACE_DIR
+    
+    wb = openpyxl.Workbook()
+    
+    # ورقة الملخص
+    ws_summary = wb.active
+    ws_summary.title = "Summary"
+    ws_summary.sheet_view.rightToLeft = True
+    
+    # عنوان التقرير
+    ws_summary.merge_cells('A1:Y1')
+    title_cell = ws_summary['A1']
+    title_cell.value = f"Fixed Asset Summary - {year} {company_name}"
+    title_cell.font = Font(name=FONTS['title'], size=SIZES['mega_title'], bold=True, color=PALETTE['royal_dark'])
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    ws_summary.row_dimensions[1].height = 35
+    
+    # رؤوس الأعمدة
+    headers = [
+        'Fixed Assets', 'Opening Balance', 'Additions', 'Disposal', 'Total',
+        'Op. Accu. Dep', 'Depr. 2025',
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        'Monthly Total', 'Dep. During the year', 'Write of AD', 'Total Accu. Dep', 'Net Book Value', 'For check'
+    ]
+    
+    header_row = 3
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_summary.cell(row=header_row, column=col_num, value=header)
+        cell.font = Font(name=FONTS['heading'], size=SIZES['body'], bold=True, color=PALETTE['white'])
+        cell.fill = PatternFill(start_color=PALETTE['royal_dark'], end_color=PALETTE['royal_dark'], fill_type='solid')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = Border(
+            left=Side(style='thin', color=PALETTE['silver']),
+            right=Side(style='thin', color=PALETTE['silver']),
+            top=Side(style='thin', color=PALETTE['silver']),
+            bottom=Side(style='medium', color=PALETTE['royal_dark'])
+        )
+    
+    ws_summary.row_dimensions[header_row].height = 30
+    
+    # بيانات الأقسام
+    current_row = header_row + 1
+    total_opening = 0
+    total_depr = 0
+    total_net = 0
+    
+    for section in sections:
+        section_opening = sum(asset['book_value'] for asset in section['assets'])
+        section_depr_rate = section['depreciation_rate']
+        section_annual_depr = section_opening * section_depr_rate
+        section_monthly_depr = section_annual_depr / 12
+        section_accumulated_depr = section_opening * section_depr_rate * 2
+        section_net_value = section_opening - section_accumulated_depr
+        
+        total_opening += section_opening
+        total_depr += section_annual_depr
+        total_net += section_net_value
+        
+        ws_summary.cell(row=current_row, column=1, value=f"RADIANT - {section['name']}")
+        ws_summary.cell(row=current_row, column=1).font = Font(bold=True, color=PALETTE['royal_dark'])
+        ws_summary.cell(row=current_row, column=2, value=section_opening)
+        ws_summary.cell(row=current_row, column=3, value=0)
+        ws_summary.cell(row=current_row, column=4, value=0)
+        ws_summary.cell(row=current_row, column=5, value=section_opening)
+        ws_summary.cell(row=current_row, column=6, value=section_accumulated_depr)
+        ws_summary.cell(row=current_row, column=7, value=section_annual_depr)
+        
+        for month in range(8, 20):
+            ws_summary.cell(row=current_row, column=month, value=section_monthly_depr)
+        
+        ws_summary.cell(row=current_row, column=20, value=section_monthly_depr)
+        ws_summary.cell(row=current_row, column=21, value=section_annual_depr)
+        ws_summary.cell(row=current_row, column=22, value=0)
+        ws_summary.cell(row=current_row, column=23, value=section_accumulated_depr + section_annual_depr)
+        ws_summary.cell(row=current_row, column=24, value=section_net_value)
+        
+        for col in range(2, 25):
+            cell = ws_summary.cell(row=current_row, column=col)
+            cell.number_format = '#,##0.00'
+            cell.alignment = Alignment(horizontal='center')
+        
+        for col in range(1, 25):
+            set_cell_shading(ws_summary.cell(row=current_row, column=col), PALETTE['section_bg'])
+        
+        current_row += 1
+    
+    # صف الإجمالي
+    ws_summary.cell(row=current_row, column=1, value="Total")
+    ws_summary.cell(row=current_row, column=1).font = Font(bold=True, size=SIZES['body'], color=PALETTE['royal_dark'])
+    ws_summary.cell(row=current_row, column=2, value=total_opening)
+    ws_summary.cell(row=current_row, column=7, value=total_depr)
+    ws_summary.cell(row=current_row, column=24, value=total_net)
+    
+    for col in range(2, 25):
+        cell = ws_summary.cell(row=current_row, column=col)
+        cell.number_format = '#,##0.00'
+        cell.font = Font(bold=True)
+        set_cell_shading(cell, PALETTE['total_bg'])
+    
+    ws_summary.column_dimensions['A'].width = 30
+    for col in range(2, 25):
+        ws_summary.column_dimensions[get_column_letter(col)].width = 12
+    
+    # أوراق الأقسام التفصيلية
+    for section in sections:
+        ws = wb.create_sheet(title=section['name'][:31])
+        ws.sheet_view.rightToLeft = True
+        
+        ws.merge_cells('A1:Q1')
+        title_cell = ws['A1']
+        title_cell.value = f"RADIANT - {section['name']}"
+        title_cell.font = Font(name=FONTS['title'], size=SIZES['title'], bold=True, color=PALETTE['white'])
+        title_cell.fill = PatternFill(start_color=PALETTE['royal_dark'], end_color=PALETTE['royal_dark'], fill_type='solid')
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 30
+        
+        ws.merge_cells('A2:Q2')
+        rate_cell = ws['A2']
+        rate_cell.value = f"Depreciation Rate: {section['depreciation_rate']*100:.2f}%"
+        rate_cell.font = Font(name=FONTS['body'], size=SIZES['body'], bold=True, color=PALETTE['royal_mid'])
+        rate_cell.alignment = Alignment(horizontal='center')
+        
+        detail_headers = [
+            'S.No.', 'Supplier Name', 'Description', 'FA No.', 'Book Value',
+            'Addition', 'Sold/Dispose', 'Total', 'Date Of Purchase',
+            'AD Dep. 12/31/24', 'Dep. for Full 2025',
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+            'Total', 'Diff', 'W/Off AD', 'AD Dep. 12/31/25', 'Net Value 12/31/25'
+        ]
+        
+        header_row = 4
+        for col_num, header in enumerate(detail_headers, 1):
+            cell = ws.cell(row=header_row, column=col_num, value=header)
+            cell.font = Font(name=FONTS['heading'], size=SIZES['small'], bold=True, color=PALETTE['white'])
+            cell.fill = PatternFill(start_color=PALETTE['royal_mid'], end_color=PALETTE['royal_mid'], fill_type='solid')
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            cell.border = Border(
+                left=Side(style='thin', color=PALETTE['silver']),
+                right=Side(style='thin', color=PALETTE['silver']),
+                top=Side(style='thin', color=PALETTE['silver']),
+                bottom=Side(style='medium', color=PALETTE['royal_dark'])
+            )
+        
+        ws.row_dimensions[header_row].height = 35
+        
+        current_row = header_row + 1
+        section_total_value = 0
+        section_total_depr = 0
+        
+        for asset in section['assets']:
+            book_value = asset['book_value']
+            annual_depr = book_value * section['depreciation_rate']
+            monthly_depr = annual_depr / 12
+            accumulated_depr = book_value * section['depreciation_rate'] * 2
+            net_value = book_value - accumulated_depr
+            
+            section_total_value += book_value
+            section_total_depr += annual_depr
+            
+            ws.cell(row=current_row, column=1, value=asset.get('sno', ''))
+            ws.cell(row=current_row, column=2, value=asset.get('supplier', ''))
+            ws.cell(row=current_row, column=3, value=asset.get('description', ''))
+            ws.cell(row=current_row, column=4, value=asset.get('fa_no', ''))
+            ws.cell(row=current_row, column=5, value=book_value)
+            ws.cell(row=current_row, column=6, value=asset.get('addition', 0))
+            ws.cell(row=current_row, column=7, value=asset.get('disposal', 0))
+            ws.cell(row=current_row, column=8, value=book_value)
+            ws.cell(row=current_row, column=9, value=asset.get('purchase_date', ''))
+            ws.cell(row=current_row, column=10, value=accumulated_depr)
+            ws.cell(row=current_row, column=11, value=annual_depr)
+            
+            for month_idx, month in enumerate(range(12, 24)):
+                ws.cell(row=current_row, column=month, value=monthly_depr)
+            
+            ws.cell(row=current_row, column=24, value=annual_depr)
+            ws.cell(row=current_row, column=25, value=0)
+            ws.cell(row=current_row, column=26, value=0)
+            ws.cell(row=current_row, column=27, value=accumulated_depr + annual_depr)
+            ws.cell(row=current_row, column=28, value=net_value)
+            
+            for col in [5, 6, 7, 8, 10, 11] + list(range(12, 29)):
+                cell = ws.cell(row=current_row, column=col)
+                cell.number_format = '#,##0.00'
+                cell.alignment = Alignment(horizontal='center')
+            
+            bg_color = PALETTE['row_even'] if current_row % 2 == 0 else PALETTE['row_odd']
+            for col in range(1, 29):
+                set_cell_shading(ws.cell(row=current_row, column=col), bg_color)
+            
+            current_row += 1
+        
+        ws.cell(row=current_row, column=2, value="Total")
+        ws.cell(row=current_row, column=2).font = Font(bold=True, color=PALETTE['royal_dark'])
+        ws.cell(row=current_row, column=5, value=section_total_value)
+        ws.cell(row=current_row, column=11, value=section_total_depr)
+        
+        for col in [5, 11] + list(range(12, 29)):
+            cell = ws.cell(row=current_row, column=col)
+            cell.number_format = '#,##0.00'
+            cell.font = Font(bold=True)
+            set_cell_shading(cell, PALETTE['total_bg'])
+        
+        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['B'].width = 25
+        ws.column_dimensions['C'].width = 35
+        ws.column_dimensions['D'].width = 10
+        for col in range(5, 29):
+            ws.column_dimensions[get_column_letter(col)].width = 12
+        
+        ws.freeze_panes = f'A{header_row + 1}'
+        ws.auto_filter.ref = f'A{header_row}:{get_column_letter(len(detail_headers))}{current_row - 1}'
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        filename = f"Fixed_Asset_{company_name}_{year}"
+    
+    filename = get_unique_filename(save_dir, filename, 'xlsx')
+    output_path = os.path.join(save_dir, filename)
+    
+    wb.save(output_path)
+    return output_path
+    # ==========================================
+# دوال Excel متعددة الأغراض
+# ==========================================
+def create_multi_sheet_excel(
+    sheets_config,
+    output_dir=None,
+    filename=None
+):
+    """
+    إنشاء ملف Excel متعدد الأوراق
+    
+    sheets_config: قائمة من القواميس:
+    - name: اسم الورقة
+    - title: عنوان الورقة (اختياري)
+    - headers: قائمة العناوين
+    - data: قائمة البيانات
+    """
+    from core.config import WORKSPACE_DIR
+    
+    wb = openpyxl.Workbook()
+    
+    for idx, sheet_cfg in enumerate(sheets_config):
+        if idx == 0:
+            ws = wb.active
+            ws.title = sheet_cfg['name'][:31]
+        else:
+            ws = wb.create_sheet(title=sheet_cfg['name'][:31])
+        
+        create_excel_sheet(
+            ws=ws,
+            headers=sheet_cfg['headers'],
+            data=sheet_cfg['data'],
+            title=sheet_cfg.get('title'),
+            freeze_row=True,
+            auto_filter=True
+        )
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
+    
+    filename = get_unique_filename(save_dir, filename, 'xlsx')
+    output_path = os.path.join(save_dir, filename)
+    
+    wb.save(output_path)
+    return output_path
+
+
+def create_professional_invoice(
+    company_name,
+    client_name,
+    invoice_number,
+    invoice_date,
+    items,
+    tax_rate=0.05,
+    notes=None,
+    output_dir=None,
+    filename=None
+):
+    """
+    إنشاء فاتورة احترافية
+    
+    items: قائمة من القواميس:
+    - description: الوصف
+    - quantity: الكمية
+    - unit_price: سعر الوحدة
+    """
+    from core.config import WORKSPACE_DIR
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "الفاتورة"
+    ws.sheet_view.rightToLeft = True
+    
+    # عنوان الفاتورة
+    ws.merge_cells('A1:F1')
+    title_cell = ws['A1']
+    title_cell.value = f"فاتورة - {company_name}"
+    title_cell.font = Font(name=FONTS['title'], size=SIZES['mega_title'], bold=True, color=PALETTE['royal_dark'])
+    title_cell.alignment = Alignment(horizontal='center', vertical='center')
+    title_cell.fill = PatternFill(start_color=PALETTE['royal_pale'], end_color=PALETTE['royal_pale'], fill_type='solid')
+    ws.row_dimensions[1].height = 40
+    
+    # معلومات الفاتورة
+    ws['A2'] = f"رقم الفاتورة: {invoice_number}"
+    ws['A2'].font = Font(bold=True, size=SIZES['body'])
+    ws['A3'] = f"التاريخ: {invoice_date}"
+    ws['A3'].font = Font(bold=True, size=SIZES['body'])
+    ws['A4'] = f"العميل: {client_name}"
+    ws['A4'].font = Font(bold=True, size=SIZES['body'])
+    
+    # رؤوس الجدول
+    headers = ['#', 'الوصف', 'الكمية', 'سعر الوحدة', 'الإجمالي']
+    header_row = 6
+    
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col_num, value=header)
+        cell.fill = PatternFill(start_color=PALETTE['royal_dark'], end_color=PALETTE['royal_dark'], fill_type='solid')
+        cell.font = Font(bold=True, color=PALETTE['white'], size=SIZES['body'])
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = Border(
+            left=Side(style='thin', color=PALETTE['silver']),
+            right=Side(style='thin', color=PALETTE['silver']),
+            top=Side(style='thin', color=PALETTE['silver']),
+            bottom=Side(style='medium', color=PALETTE['gold'])
+        )
+    
+    ws.row_dimensions[header_row].height = 28
+    
+    # البيانات
+    data_start_row = header_row + 1
+    total = 0
+    
+    for idx, item in enumerate(items, 1):
+        row = data_start_row + idx - 1
+        quantity = item['quantity']
+        unit_price = item['unit_price']
+        item_total = quantity * unit_price
+        total += item_total
+        
+        ws.cell(row=row, column=1, value=idx)
+        ws.cell(row=row, column=2, value=item['description'])
+        ws.cell(row=row, column=3, value=quantity)
+        ws.cell(row=row, column=4, value=unit_price)
+        ws.cell(row=row, column=5, value=item_total)
+        
+        for col in range(1, 6):
+            cell = ws.cell(row=row, column=col)
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = Border(
+                left=Side(style='thin', color=PALETTE['silver']),
+                right=Side(style='thin', color=PALETTE['silver']),
+                top=Side(style='thin', color=PALETTE['silver']),
+                bottom=Side(style='thin', color=PALETTE['silver'])
+            )
+            if col >= 3:
+                cell.number_format = '#,##0.00'
+        
+        bg_color = PALETTE['row_even'] if idx % 2 == 0 else PALETTE['cream']
+        for col in range(1, 6):
+            ws.cell(row=row, column=col).fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type='solid')
+    
+    # الإجماليات
+    total_row = data_start_row + len(items)
+    ws.cell(row=total_row, column=4, value="الإجمالي الفرعي:")
+    ws.cell(row=total_row, column=4).font = Font(bold=True, size=SIZES['body'])
+    ws.cell(row=total_row, column=5, value=total)
+    ws.cell(row=total_row, column=5).font = Font(bold=True, size=SIZES['body'])
+    ws.cell(row=total_row, column=5).number_format = '#,##0.00'
+    
+    tax_row = total_row + 1
+    tax_amount = total * tax_rate
+    ws.cell(row=tax_row, column=4, value=f"الضريبة ({tax_rate*100}%):")
+    ws.cell(row=tax_row, column=4).font = Font(bold=True, size=SIZES['body'])
+    ws.cell(row=tax_row, column=5, value=tax_amount)
+    ws.cell(row=tax_row, column=5).font = Font(bold=True, size=SIZES['body'])
+    ws.cell(row=tax_row, column=5).number_format = '#,##0.00'
+    
+    final_row = tax_row + 1
+    final_total = total + tax_amount
+    ws.cell(row=final_row, column=4, value="الإجمالي النهائي:")
+    ws.cell(row=final_row, column=4).font = Font(bold=True, size=SIZES['heading'], color=PALETTE['royal_dark'])
+    ws.cell(row=final_row, column=5, value=final_total)
+    ws.cell(row=final_row, column=5).font = Font(bold=True, size=SIZES['heading'], color=PALETTE['royal_dark'])
+    ws.cell(row=final_row, column=5).number_format = '#,##0.00'
+    
+    for col in range(4, 6):
+        for row in [total_row, tax_row, final_row]:
+            ws.cell(row=row, column=col).fill = PatternFill(start_color=PALETTE['total_bg'], end_color=PALETTE['total_bg'], fill_type='solid')
+    
+    # الملاحظات
+    if notes:
+        notes_row = final_row + 2
+        ws.cell(row=notes_row, column=1, value="ملاحظات:")
+        ws.cell(row=notes_row, column=1).font = Font(bold=True, size=SIZES['body'])
+        ws.cell(row=notes_row + 1, column=1, value=notes)
+        ws.cell(row=notes_row + 1, column=1).font = Font(size=SIZES['body'])
+    
+    # ضبط العرض
+    ws.column_dimensions['A'].width = 5
+    ws.column_dimensions['B'].width = 40
+    ws.column_dimensions['C'].width = 12
+    ws.column_dimensions['D'].width = 15
+    ws.column_dimensions['E'].width = 15
+    
+    # تجميد
+    ws.freeze_panes = f'A{data_start_row}'
+    
+    # الحفظ
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        filename = f"فاتورة_{invoice_number}"
+    
+    filename = get_unique_filename(save_dir, filename, 'xlsx')
+    output_path = os.path.join(save_dir, filename)
+    
+    wb.save(output_path)
+    return output_path
