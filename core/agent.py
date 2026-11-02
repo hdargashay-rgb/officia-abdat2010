@@ -1,6 +1,6 @@
 """
 Agent Loop - الحلقة الذكية للوكيل
-يوجه النموذج لاستخدام formatter.py لإنشاء مستندات احترافية
+يوجه النموذج لكتابة محتوى إبداعي مع استخدام دوال التنسيق الاحترافية
 """
 from core.llm_client import LLMClient
 from core.executor import Executor
@@ -60,191 +60,142 @@ class Agent:
                 }
 
     def _build_code_prompt(self, user_request: str) -> str:
-        return f"""أنت وكيل ذكي متخصص في إنشاء المستندات المكتبية الاحترافية باللغة العربية.
+        return f"""أنت كاتب خطابات ومحارير محترف ومبرمج Python خبير.
 
 ==========================================
-⚠️ قواعد إلزامية صارمة:
+🎯 مهمتك المزدوجة:
 ==========================================
 
-1. **يجب استخدام مكتبة core.formatter** لإنشاء أي ملف:
-   - للخطابات: `from core.formatter import create_professional_letter`
-   - لتقارير الأصول الثابتة: `from core.formatter import create_fixed_asset_report`
-   - لتقارير Excel متعددة الأوراق: `from core.formatter import create_multi_sheet_excel`
-   - للفواتير: `from core.formatter import create_professional_invoice`
+1️⃣ **الكاتب الذكي**: اكتب محتوى الخطاب/التقرير بصياغتك الإبداعية
+   - شاملة لكل جوانب الموضوع
+   - موجزة ومركزة (ما لم يطلب المستخدم التفصيل)
+   - تستخدم مصطلحات رسمية: "بالإشارة إلى"، "نرجو التكرم"، "وتفضلوا بقبول فائق الاحترام"
+   - لا تكرر المقدمة - اكتبها مرة واحدة فقط
 
-2. **مسار الحفظ**: استخدم دائماً `output_dir="{WORKSPACE_DIR}"`
+2️⃣ **المبرمج المحترف**: استخدم دوال التنسيق من core.formatter
+   - ممنوع كتابة كود python-docx أو openpyxl مباشرة
+   - استخدم الدوال الجاهزة لإنشاء مستندات منسقة
 
-3. **اطبع اسم الملف في النهاية**:
+==========================================
+📚 مكتبة التنسيق المتاحة (core.formatter):
+==========================================
+
+دوال Word:
+- add_elegant_header(doc, org_name, title, subtitle)
+- add_document_info(doc, date, ref, recipient, subject)
+- add_greeting(doc, greeting_text)
+- add_content_paragraphs(doc, paragraphs, numbered=False)
+- create_professional_table(doc, headers, data, caption)
+- add_closing(doc, closing_text, sig_name, sig_title)
+- add_note(doc, note_text)
+- add_attachments(doc, attachments_list)
+- setup_document(doc)
+- add_footer(doc)
+
+دوال Excel:
+- create_excel_sheet(ws, headers, data, title)
+- create_multi_sheet_excel(sheets_config, output_dir)
+- create_fixed_asset_report(company, year, sections, output_dir)
+- create_professional_invoice(company, client, number, date, items, output_dir)
+
+==========================================
+📝 مثال 1: خطاب رسمي
+==========================================
 ```python
-   print(f"SUCCESS: {{output_path}}")
-```
-
-4. **المكتبات المسموحة**:
-   core.formatter, openpyxl, pandas, numpy, python-docx, Pillow, os, sys, math, datetime, json, re, pathlib, shutil, tempfile
-
-5. **ممنوع**: input(), subprocess, os.system, eval(), exec(), os.environ
-
-==========================================
-مثال 1: خطاب رسمي
-==========================================
-```python
-from core.formatter import create_professional_letter
-
-output_path = create_professional_letter(
-    recipient="شركة ردينت للعناية بالسيارات",
-    subject="مطالبة بمتأخرات الأجرة الشهرية",
-    content_paragraphs=[
-        "بالإشارة إلى الموضوع أعلاه، نتقدم إليكم بهذا الخطاب للمطالبة بالمستحقات المتأخرة.",
-        "حيث أن إجمالي المبلغ المستحق يبلغ 120,000 ريال.",
-        "نرجو التكرم بسداد المبلغ المستحق في فترة أقصاها أسبوع."
-    ],
-    table_headers=["الشهر", "رقم الشيك", "القيمة", "البنك"],
-    table_data=[
-        ["يوليو", "0000611", "30000", "دخان"],
-        ["أغسطس", "0000612", "30000", "دخان"],
-        ["سبتمبر", "0000613", "30000", "دخان"],
-        ["أكتوبر", "0000614", "30000", "دخان"]
-    ],
-    table_caption="تفاصيل الشيكات المستحقة",
-    closing_note="يرجى السداد خلال أسبوع",
-    sender_name="المحامي عبدالله",
-    sender_organization="مكتب المحاماة",
-    output_dir="{WORKSPACE_DIR}"
+from docx import Document
+from core.formatter import (
+    setup_document, add_elegant_header, add_document_info,
+    add_greeting, add_content_paragraphs, create_professional_table,
+    add_closing, add_note, add_footer
 )
-print(f"SUCCESS: {{output_path}}")
-```
 
-==========================================
-مثال 2: تقرير أصول ثابتة احترافي
-==========================================
-```python
-from core.formatter import create_fixed_asset_report
+doc = Document()
+setup_document(doc)
 
-sections = [
-    {{
-        'name': 'Hardware & Software',
-        'depreciation_rate': 0.3333,
-        'assets': [
-            {{
-                'sno': 2,
-                'supplier': 'ATCOM TECHNOLOGY',
-                'description': 'AVAYA IP TELEPHONE',
-                'fa_no': '',
-                'book_value': 5250.00,
-                'addition': 0,
-                'disposal': 0,
-                'purchase_date': '3/24/22'
-            }},
-            {{
-                'sno': 3,
-                'supplier': 'THME HONEST',
-                'description': 'LENOVO COMPUTER',
-                'fa_no': '',
-                'book_value': 5480.00,
-                'addition': 0,
-                'disposal': 0,
-                'purchase_date': '3/28/22'
-            }}
-        ]
-    }},
-    {{
-        'name': 'Tools & Equipment',
-        'depreciation_rate': 0.20,
-        'assets': [
-            {{
-                'sno': 1,
-                'supplier': 'XPEL INC USA',
-                'description': 'XPEL FILM CUTTING MACHINE',
-                'fa_no': '',
-                'book_value': 7861.00,
-                'addition': 0,
-                'disposal': 0,
-                'purchase_date': '1/12/22'
-            }}
-        ]
-    }}
+# الرأس
+add_elegant_header(doc, "شركة ردينت", "مطالبة بمتأخرات الأجرة")
+
+# المعلومات
+add_document_info(doc, recipient="السيد أحمد محمد", subject="مطالبة بمتأخرات الأجرة الشهرية")
+
+# التحية
+add_greeting(doc)
+
+# المحتوى (اكتب بصياغتك الذكية - شاملة وموجزة)
+paragraphs = [
+    "بالإشارة إلى الموضوع أعلاه، نتقدم إليكم بهذا الخطاب للمطالبة بالمستحقات المتأخرة.",
+    "حيث أن إجمالي المبلغ المستحق يبلغ 120,000 ريال، عبارة عن أربعة شيكات شهرية لم يتم صرفها.",
+    "نرجو التكرم بسداد المبلغ المستحق في فترة أقصاها أسبوع من تاريخ هذا الخطاب، تجنباً لاتخاذ الإجراءات القانونية."
 ]
+add_content_paragraphs(doc, paragraphs, numbered=True)
 
-output_path = create_fixed_asset_report(
-    company_name="Radiant Car Care",
-    year=2025,
-    sections=sections,
-    output_dir="{WORKSPACE_DIR}",
-    filename="Fixed_Asset_2025"
-)
+# الجدول
+headers = ["الشهر", "رقم الشيك", "القيمة (ريال)", "البنك"]
+data = [
+    ["يوليو", "0000611", "30,000", "دخان"],
+    ["أغسطس", "0000612", "30,000", "دخان"],
+    ["سبتمبر", "0000613", "30,000", "دخان"],
+    ["أكتوبر", "0000614", "30,000", "دخان"]
+]
+create_professional_table(doc, headers, data, "تفاصيل الشيكات المستحقة")
+
+# الخاتمة
+add_closing(doc, signature_name="المحامي عبدالله", signature_title="المستشار القانوني")
+
+# ملاحظة
+add_note(doc, "يرجى السداد خلال أسبوع من تاريخ الخطاب")
+
+# التذييل
+add_footer(doc)
+
+# الحفظ
+output_path = "خطاب_مطالبة.docx"
+doc.save(output_path)
 print(f"SUCCESS: {{output_path}}")
 ```
 
 ==========================================
-مثال 3: تقرير Excel متعدد الأوراق
+📊 مثال 2: تقرير Excel
 ==========================================
 ```python
 from core.formatter import create_multi_sheet_excel
 
-sheets_config = [
+sheets = [
     {{
         'name': 'الموظفون',
         'title': 'بيانات الموظفين',
-        'headers': ['رقم الموظف', 'الاسم', 'القسم', 'الراتب'],
+        'headers': ['الرقم', 'الاسم', 'القسم', 'الراتب'],
         'data': [
             ['M001', 'أحمد محمد', 'مبيعات', 5000],
-            ['M002', 'محمد علي', 'محاسبة', 6000],
-            ['M003', 'فاطمة حسن', 'موارد بشرية', 5500]
-        ]
-    }},
-    {{
-        'name': 'الحضور',
-        'title': 'سجل الحضور',
-        'headers': ['رقم الموظف', 'أيام الحضور', 'أيام الغياب'],
-        'data': [
-            ['M001', 20, 2],
-            ['M002', 22, 0],
-            ['M003', 18, 4]
+            ['M002', 'محمد علي', 'محاسبة', 6000]
         ]
     }}
 ]
 
-output_path = create_multi_sheet_excel(
-    sheets_config,
-    output_dir="{WORKSPACE_DIR}",
-    filename="تقرير_الموظفين"
-)
+output_path = create_multi_sheet_excel(sheets, output_dir="{WORKSPACE_DIR}")
 print(f"SUCCESS: {{output_path}}")
 ```
 
 ==========================================
-مثال 4: فاتورة احترافية
+⚠️ قواعد إلزامية:
 ==========================================
-```python
-from core.formatter import create_professional_invoice
 
-items = [
-    {{'description': 'خدمة غسيل سيارات', 'quantity': 5, 'unit_price': 100}},
-    {{'description': 'خدمة تلميع', 'quantity': 2, 'unit_price': 250}},
-    {{'description': 'خدمة حماية الطلاء', 'quantity': 1, 'unit_price': 1500}}
-]
-
-output_path = create_professional_invoice(
-    company_name="Radiant Car Care",
-    client_name="أحمد محمد",
-    invoice_number="INV-2025-001",
-    invoice_date="2025-11-03",
-    items=items,
-    tax_rate=0.05,
-    notes="شكراً لتعاملكم معنا",
-    output_dir="{WORKSPACE_DIR}",
-    filename="فاتورة_001"
-)
-print(f"SUCCESS: {{output_path}}")
-```
+1. ابدأ دائماً بـ: from docx import Document
+2. استورد الدوال من: from core.formatter import ...
+3. استخدم setup_document(doc) في البداية
+4. اكتب محتوى شاملة وموجزة (3-5 فقرات للخطابات العادية)
+5. لا تكرر "بالإشارة إلى الموضوع أعلاه" - اذكرها مرة واحدة فقط
+6. عند وجود بيانات رقمية، استخدم create_professional_table مع headers واضحة
+7. اختم بـ add_closing و add_footer
+8. احفظ الملف واطبع: print(f"SUCCESS: {{output_path}}")
 
 ==========================================
-الآن نفذ الطلب التالي:
+🎯 الآن نفذ الطلب التالي:
 ==========================================
 
 {user_request}
 
-اكتب كود Python كامل يستخدم core.formatter. ابدأ بـ ```python وانهِ بـ ```"""
+اكتب كود Python كامل يبدأ بـ from docx import Document. ابدأ بـ ```python وانهِ بـ ```"""
 
     def _build_fix_prompt(self, original_request: str, previous_code: str, error: str) -> str:
         return f"""❌ الكود السابق فشل.
@@ -261,10 +212,10 @@ print(f"SUCCESS: {{output_path}}")
 ==========================================
 تعليمات التصحيح:
 ==========================================
-1. استخدم `from core.formatter import ...` (إحدى الدوال الأربع)
-2. تأكد من `output_dir="{WORKSPACE_DIR}"`
-3. اطبع: `print(f"SUCCESS: {{output_path}}")`
-4. لا تكتب كود openpyxl أو python-docx مباشرة
+1. تأكد من استيراد الدوال الصحيحة من core.formatter
+2. تأكد من استخدام setup_document(doc) في البداية
+3. تأكد من حفظ الملف وطباعة المسار
+4. لا تستخدم python-docx مباشرة - استخدم دوال formatter
 
 أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
 
