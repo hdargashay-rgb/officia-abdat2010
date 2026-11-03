@@ -1,5 +1,6 @@
 """
 Agent Loop - الحلقة الذكية للوكيل
+يستخدم نظام الأنماط الديناميكي لتصنيف المستندات واختيار الأنماط المناسبة
 """
 from core.llm_client import LLMClient
 from core.executor import Executor
@@ -59,30 +60,83 @@ class Agent:
                 }
 
     def _build_code_prompt(self, user_request: str) -> str:
-        return f"""أنت كاتب خطابات محترف ومبرمج Python خبير.
+        return f"""أنت كاتب محترف ومبرمج Python خبير متخصص في إنشاء مستندات احترافية.
 
-⚠️ قاعدة إلزامية واحدة فقط:
-يجب أن تستخدم الدوال الموجودة في core.formatter فقط.
-ممنوع اختراع أسماء دوال غير موجودة.
+⚠️ قاعدة إلزامية:
+استخدم الدوال من core.formatter فقط حسب نوع المستند المطلوب.
 
-📚 الدوال المتاحة حصرياً:
+📚 الدوال المتاحة:
 
-للخطابات (استخدم واحدة فقط):
-- generate_professional_letter(...) ← دالة شاملة لإنشاء خطاب كامل
-- create_professional_letter(...) ← دالة بديلة
+1️⃣ للخطابات الرسمية بأنماط متنوعة:
+- generate_styled_letter(organization_name, title, recipient, subject, paragraphs, table_headers, table_data, table_caption, header_style, content_style, table_style, footer_style, signature_style, signatures, output_dir)
 
-لـ Excel:
+2️⃣ للسيرة الذاتية المتوافقة مع ATS:
+- generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, output_dir)
+
+3️⃣ لتقارير Excel:
 - create_multi_sheet_excel(sheets_config, output_dir)
 - create_fixed_asset_report(company, year, sections, output_dir)
 - create_professional_invoice(company, client, number, date, items, output_dir)
 
 ==========================================
-📝 مثال صحيح 100% (انسخ النمط):
+🎨 الأنماط المتاحة للخطابات:
+==========================================
+
+📌 header_style (الرأس):
+- official: رسمي كلاسيكي (خطوط مزدوجة + ذهبية)
+- modern: حديث بسيط
+- professional: احترافي مع شعار
+- minimal: بسيط جداً
+- bold: عريض قوي
+- gradient: تجاري متدرج
+- celebration: احتفالي مزخرف
+- islamic: إسلامي تراثي (مع بسملة)
+
+📌 content_style (المحتوى):
+- paragraphs: فقرات تقليدية
+- numbered: نقاط مرقمة
+- bullets: نقاط برمز •
+- compact: مضغوط
+- mixed: مزيج مرن
+- quoted: مقتبس
+- highlighted: بارز ومميز
+- decorative: زخرفي
+
+📌 table_style (الجدول):
+- royal_blue: أزرق ملكي
+- green_finance: أخضر مالي
+- dark_elegant: أسود أنيق
+- colorful: ملون متدرج
+- minimal: بسيط بدون ألوان
+- accounting: محاسبي Excel
+- modern_shadows: حديث بظلال
+- golden_luxury: ذهبي فاخر
+- purple_royal: بنفسجي ملكي
+- rose_elegant: وردي أنيق
+
+📌 footer_style (التذييل):
+- simple: بسيط
+- professional: احترافي
+- contact: مع معلومات الاتصال
+- logo: شعار + نص
+- decorative: زخرفي
+- double_line: خط مزدوج
+
+📌 signature_style (التوقيع):
+- single: توقيع واحد
+- dual: توقيعان
+- triple: ثلاثة توقيعات
+- stamp: ختم + توقيع
+- multi_level: متعدد المستويات
+- formal_table: جدول توقيعات رسمي
+
+==========================================
+📝 مثال 1: خطاب رسمي كلاسيكي
 ==========================================
 ```python
-from core.formatter import generate_professional_letter
+from core.formatter import generate_styled_letter
 
-output_path = generate_professional_letter(
+output_path = generate_styled_letter(
     organization_name="شركة ردينت للعناية بالسيارات",
     title="مطالبة بمتأخرات الأجرة الشهرية",
     recipient="السيد أحمد محمد",
@@ -100,20 +154,89 @@ output_path = generate_professional_letter(
         ["أكتوبر", "0000614", "30000", "دخان"]
     ],
     table_caption="تفاصيل الشيكات المستحقة",
-    signature_name="المحامي عبدالله",
-    signature_title="المستشار القانوني",
-    note="يرجى السداد خلال أسبوع من تاريخ الخطاب",
+    header_style='official',
+    content_style='paragraphs',
+    table_style='royal_blue',
+    footer_style='professional',
+    signature_style='single',
+    signatures=[{{'name': 'المحامي عبدالله', 'title': 'المستشار القانوني'}}],
     output_dir="{WORKSPACE_DIR}"
 )
 print(f"SUCCESS: {{output_path}}")
 ```
 
 ==========================================
-❌ ممنوع:
+📝 مثال 2: مذكرة داخلية حديثة
 ==========================================
-- ممنوع: from docx import Document (استخدم generate_professional_letter)
-- ممنوع: generate_document, create_letter, make_doc (أسماء غير موجودة)
-- ممنوع: اختراع أي دالة غير مذكورة أعلاه
+```python
+from core.formatter import generate_styled_letter
+
+output_path = generate_styled_letter(
+    organization_name="شركة ردينت",
+    title="مذكرة داخلية",
+    recipient="جميع الموظفين",
+    subject="تحديث مواعيد العمل",
+    paragraphs=[
+        "نود إعلامكم بتعديل مواعيد العمل خلال شهر رمضان المبارك.",
+        "سيكون دوام الموظفين من الساعة 9 صباحاً حتى 3 ظهراً.",
+        "نرجو من الجميع الالتزام بالمواعيد الجديدة."
+    ],
+    header_style='modern',
+    content_style='bullets',
+    table_style='minimal',
+    footer_style='simple',
+    signature_style='none',
+    output_dir="{WORKSPACE_DIR}"
+)
+print(f"SUCCESS: {{output_path}}")
+```
+
+==========================================
+📝 مثال 3: سيرة ذاتية متوافقة مع ATS
+==========================================
+```python
+from core.formatter import generate_ats_cv
+
+output_path = generate_ats_cv(
+    full_name="أحمد محمد عبدالله",
+    phone="+966501234567",
+    email="ahmed@example.com",
+    location="الرياض، السعودية",
+    linkedin="linkedin.com/in/ahmed",
+    summary="محاسب قانوني معتمد بخبرة 10 سنوات في إدارة الحسابات والتحليل المالي، متخصص في إعداد التقارير المالية ومراجعة الحسابات.",
+    experience=[
+        {{
+            'role': 'مدير الحسابات',
+            'company': 'شركة ردينت',
+            'date': '2020 - الحاضر',
+            'responsibilities': [
+                'إدارة فريق محاسبة مكون من 5 موظفين',
+                'إعداد التقارير المالية الشهرية والسنوية',
+                'مراجعة الحسابات وضمان دقة البيانات'
+            ]
+        }}
+    ],
+    education=[
+        {{
+            'degree': 'بكالوريوس محاسبة',
+            'university': 'جامعة الملك سعود',
+            'year': '2014'
+        }}
+    ],
+    skills=["Excel المتقدم", "SAP", "التحليل المالي", "IFRS", "المراجعة الداخلية"],
+    output_dir="{WORKSPACE_DIR}"
+)
+print(f"SUCCESS: {{output_path}}")
+```
+
+==========================================
+⚠️ تحذيرات مهمة:
+==========================================
+- ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات
+- ممنوع استخدام from docx import Document مباشرة
+- ممنوع اختراع دوال غير موجودة
+- اختر الأنماط المناسبة حسب نوع المستند
+- للسيرة الذاتية: استخدم generate_ats_cv فقط
 
 ==========================================
 الآن نفذ الطلب:
@@ -121,7 +244,7 @@ print(f"SUCCESS: {{output_path}}")
 
 {user_request}
 
-اكتب كود Python يبدأ بـ from core.formatter import generate_professional_letter. ابدأ بـ ```python وانهِ بـ ```"""
+اختر الدالة المناسبة والأنماط الأنسب. ابدأ بـ ```python وانهِ بـ ```"""
 
     def _build_fix_prompt(self, original_request: str, previous_code: str, error: str) -> str:
         return f"""❌ الكود السابق فشل.
@@ -138,10 +261,11 @@ print(f"SUCCESS: {{output_path}}")
 ==========================================
 تعليمات التصحيح:
 ==========================================
-1. استخدم ONLY: from core.formatter import generate_professional_letter
-2. لا تستخدم: generate_document, create_letter, make_doc
-3. تأكد من تمرير جميع المعاملات المطلوبة
+1. استخدم الدالة المناسبة من core.formatter
+2. تأكد من تمرير جميع المعاملات المطلوبة
+3. اختر الأنماط المناسبة (header_style, content_style, table_style...)
 4. اطبع: print(f"SUCCESS: {{output_path}}")
+5. ممنوع إضافة أرقام في بداية الفقرات
 
 أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
 
