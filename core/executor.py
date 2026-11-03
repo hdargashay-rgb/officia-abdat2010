@@ -22,9 +22,24 @@ class Executor:
 
     def remove_numbering_from_paragraphs(self, code: str) -> str:
         """إزالة الترقيم التلقائي (1. 2. 3.) من نصوص الفقرات"""
-        # إزالة أنماط مثل: "1. " أو "2. " في بداية النصوص داخل quotes
-        pattern = r'(["\'])(\d+\.\s+)([^"\']*?)(["\'])'
-        return re.sub(pattern, r'\1\3\4', code)
+        result = code
+        
+        # أنماط متعددة للترقيم
+        patterns = [
+            # "1. نص" أو '1. نص'
+            r'(["\'])(\d+\.\s+)([^"\']*?)(["\'])',
+            # "1- نص" أو '1- نص'
+            r'(["\'])(\d+-\s+)([^"\']*?)(["\'])',
+            # "1) نص" أو '1) نص'
+            r'(["\'])(\d+\)\s+)([^"\']*?)(["\'])',
+            # أرقام عربية: "١. نص"
+            r'(["\'])([\u0660-\u0669]+[\.\-\)]\s+)([^"\']*?)(["\'])',
+        ]
+        
+        for pattern in patterns:
+            result = re.sub(pattern, r'\1\3\4', result)
+        
+        return result
 
     def run_script(self, script_content: str, timeout: int = None) -> dict:
         if timeout is None:
