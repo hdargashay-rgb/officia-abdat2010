@@ -19,6 +19,12 @@ from openpyxl.chart import BarChart, PieChart, LineChart, Reference
 from openpyxl.chart.label import DataLabelList
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.worksheet.table import Table, TableStyleInfo
+from core.styles import (
+    apply_header_style, apply_content_style, apply_table_style,
+    apply_footer_style, apply_signature_style,
+    classify_document_type, get_recommended_styles
+)
+import re
 
 # ==========================================
 # نظام الألوان الاحترافي المتقدم
@@ -1204,6 +1210,209 @@ def generate_professional_letter(
     if filename is None:
         safe_title = title[:30].replace(' ', '_').replace('/', '-')
         filename = f"خطاب_{safe_title}"
+    
+    filename = get_unique_filename(save_dir, filename, 'docx')
+    output_path = os.path.join(save_dir, filename)
+    
+    doc.save(output_path)
+    return output_path
+
+# ==========================================
+# 📝 دالة إنشاء خطاب بأنماط ديناميكية
+# ==========================================
+def generate_styled_letter(
+    organization_name,
+    title,
+    recipient,
+    subject,
+    paragraphs,
+    table_headers=None,
+    table_data=None,
+    table_caption=None,
+    header_style='official',
+    content_style='paragraphs',
+    table_style='royal_blue',
+    footer_style='professional',
+    signature_style='single',
+    signatures=None,
+    output_dir=None,
+    filename=None
+):
+    """إنشاء خطاب باستخدام نظام الأنماط الديناميكي"""
+    from core.config import WORKSPACE_DIR
+    
+    doc = Document()
+    setup_document(doc)
+    
+    apply_header_style(doc, header_style, organization_name, title)
+    add_document_info(doc, recipient=recipient, subject=subject)
+    add_greeting(doc)
+    apply_content_style(doc, content_style, paragraphs)
+    
+    if table_headers and table_data:
+        apply_table_style(doc, table_style, table_headers, table_data, table_caption)
+    
+    apply_signature_style(doc, signature_style, signatures)
+    apply_footer_style(doc, footer_style)
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_title = title[:30].replace(' ', '_').replace('/', '-')
+        filename = f"خطاب_{safe_title}"
+    
+    filename = get_unique_filename(save_dir, filename, 'docx')
+    output_path = os.path.join(save_dir, filename)
+    
+    doc.save(output_path)
+    return output_path
+
+
+# ==========================================
+# 📄 دالة إنشاء سيرة ذاتية متوافقة مع ATS
+# ==========================================
+def generate_ats_cv(
+    full_name,
+    phone,
+    email,
+    location,
+    linkedin,
+    summary,
+    experience,
+    education,
+    skills,
+    output_dir=None,
+    filename=None
+):
+    """إنشاء سيرة ذاتية متوافقة 100% مع أنظمة ATS"""
+    from core.config import WORKSPACE_DIR
+    
+    doc = Document()
+    
+    section = doc.sections[0]
+    section.top_margin = Cm(2)
+    section.bottom_margin = Cm(2)
+    section.left_margin = Cm(2)
+    section.right_margin = Cm(2)
+    
+    style = doc.styles['Normal']
+    style.font.name = 'Calibri'
+    style.font.size = Pt(11)
+    style.font.color.rgb = RGBColor.from_string('000000')
+    style.paragraph_format.line_spacing = 1.15
+    style.paragraph_format.space_after = Pt(6)
+
+    # الاسم الكامل
+    name_para = doc.add_paragraph()
+    name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    name_run = name_para.add_run(full_name.upper())
+    name_run.font.name = 'Calibri'
+    name_run.font.size = Pt(20)
+    name_run.font.bold = True
+    name_run.font.color.rgb = RGBColor.from_string('1B3A5C')
+
+    # معلومات الاتصال
+    contact_para = doc.add_paragraph()
+    contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    contact_text = f"{phone} | {email} | {location}"
+    if linkedin:
+        contact_text += f" | {linkedin}"
+    contact_run = contact_para.add_run(contact_text)
+    contact_run.font.name = 'Calibri'
+    contact_run.font.size = Pt(10)
+    contact_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+    
+    doc.add_paragraph()
+
+    def add_ats_section_title(title_text):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(12)
+        p.paragraph_format.space_after = Pt(6)
+        p.paragraph_format.bottom_border = parse_xml(
+            f'<w:pBdr {nsdecls("w")}>'
+            f'  <w:bottom w:val="single" w:sz="4" w:space="1" w:color="1B3A5C"/>'
+            f'</w:pBdr>'
+        )
+        run = p.add_run(title_text.upper())
+        run.font.name = 'Calibri'
+        run.font.size = Pt(12)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor.from_string('1B3A5C')
+
+    # الملخص المهني
+    add_ats_section_title("ملخص مهني" if any('\u0600' <= c <= '\u06FF' for c in summary) else "Professional Summary")
+    summary_para = doc.add_paragraph()
+    summary_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in summary) else WD_ALIGN_PARAGRAPH.LEFT
+    summary_run = summary_para.add_run(summary)
+    summary_run.font.name = 'Calibri'
+    summary_run.font.size = Pt(11)
+
+    # الخبرة العملية
+    add_ats_section_title("الخبرة العملية" if any('\u0600' <= c <= '\u06FF' for c in str(experience)) else "Work Experience")
+    for exp in experience:
+        header_p = doc.add_paragraph()
+        header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(exp)) else WD_ALIGN_PARAGRAPH.LEFT
+        
+        role_run = header_p.add_run(exp.get('role', ''))
+        role_run.font.bold = True
+        role_run.font.size = Pt(11)
+        
+        header_p.add_run(" | ")
+        
+        company_run = header_p.add_run(exp.get('company', ''))
+        company_run.font.italic = True
+        
+        header_p.add_run(" | ")
+        
+        date_run = header_p.add_run(exp.get('date', ''))
+        date_run.font.size = Pt(10)
+        date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+        
+        for responsibility in exp.get('responsibilities', []):
+            bullet_p = doc.add_paragraph()
+            bullet_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in responsibility) else WD_ALIGN_PARAGRAPH.LEFT
+            bullet_p.paragraph_format.left_indent = Cm(0.5)
+            bullet_run = bullet_p.add_run(f"• {responsibility}")
+            bullet_run.font.name = 'Calibri'
+            bullet_run.font.size = Pt(11)
+
+    # التعليم
+    add_ats_section_title("التعليم" if any('\u0600' <= c <= '\u06FF' for c in str(education)) else "Education")
+    for edu in education:
+        edu_p = doc.add_paragraph()
+        edu_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(edu)) else WD_ALIGN_PARAGRAPH.LEFT
+        
+        degree_run = edu_p.add_run(edu.get('degree', ''))
+        degree_run.font.bold = True
+        
+        edu_p.add_run(" - ")
+        
+        uni_run = edu_p.add_run(edu.get('university', ''))
+        uni_run.font.italic = True
+        
+        edu_p.add_run(" | ")
+        
+        year_run = edu_p.add_run(edu.get('year', ''))
+        year_run.font.size = Pt(10)
+        year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+
+    # المهارات
+    add_ats_section_title("المهارات" if any('\u0600' <= c <= '\u06FF' for c in str(skills)) else "Skills")
+    skills_p = doc.add_paragraph()
+    skills_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(skills)) else WD_ALIGN_PARAGRAPH.LEFT
+    skills_text = " • ".join(skills)
+    skills_run = skills_p.add_run(skills_text)
+    skills_run.font.name = 'Calibri'
+    skills_run.font.size = Pt(11)
+
+    # الحفظ
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_name = full_name.replace(' ', '_')
+        filename = f"CV_{safe_name}"
     
     filename = get_unique_filename(save_dir, filename, 'docx')
     output_path = os.path.join(save_dir, filename)
