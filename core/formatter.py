@@ -911,6 +911,70 @@ def create_multi_sheet_excel(
     
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
+
+    # ==========================================
+# دالة شاملة لإنشاء خطاب احترافي
+# ==========================================
+def generate_professional_letter(
+    organization_name,
+    title,
+    recipient,
+    subject,
+    paragraphs,
+    table_headers=None,
+    table_data=None,
+    table_caption=None,
+    closing_text="وتفضلوا بقبول فائق الاحترام والتقدير،،",
+    signature_name=None,
+    signature_title=None,
+    note=None,
+    output_dir=None,
+    filename=None
+):
+    """دالة شاملة لإنشاء خطاب احترافي كامل - بدون ترقيم"""
+    from core.config import WORKSPACE_DIR
+    
+    doc = Document()
+    setup_document(doc)
+    add_elegant_header(doc, organization_name, title)
+    add_document_info(doc, recipient=recipient, subject=subject)
+    add_greeting(doc)
+    
+    # إضافة الفقرات بدون ترقيم نهائياً
+    for para_text in paragraphs:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p.paragraph_format.first_line_indent = Cm(1.5)
+        p.paragraph_format.line_spacing = 1.6
+        p.paragraph_format.space_after = Pt(10)
+        run = p.add_run(para_text)
+        run.font.name = FONTS['body']
+        run.font.size = Pt(SIZES['body'])
+        run.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
+        set_paragraph_rtl(p)
+    
+    if table_headers and table_data:
+        create_professional_table(doc, table_headers, table_data, table_caption)
+    
+    add_closing(doc, closing_text, signature_name, signature_title)
+    
+    if note:
+        add_note(doc, note)
+    
+    add_footer(doc)
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_title = title[:30].replace(' ', '_').replace('/', '-')
+        filename = f"خطاب_{safe_title}"
+    
+    filename = get_unique_filename(save_dir, filename, 'docx')
+    output_path = os.path.join(save_dir, filename)
+    
+    doc.save(output_path)
+    return output_path
     
     if filename is None:
         filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
