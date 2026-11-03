@@ -1140,7 +1140,7 @@ def create_professional_invoice(
     return output_path
 
 # ==========================================
-# دالة شاملة لإنشاء خطاب احترافي (Wrapper)
+# دالة شاملة لإنشاء خطاب احترافي
 # ==========================================
 def generate_professional_letter(
     organization_name,
@@ -1158,57 +1158,46 @@ def generate_professional_letter(
     output_dir=None,
     filename=None
 ):
-    """
-    دالة شاملة لإنشاء خطاب احترافي كامل في استدعاء واحد
-    
-    المعاملات:
-    - organization_name: اسم المؤسسة
-    - title: عنوان الخطاب
-    - recipient: المرسل إليه
-    - subject: الموضوع
-    - paragraphs: قائمة فقرات المحتوى
-    - table_headers: عناوين الجدول (اختياري)
-    - table_data: بيانات الجدول (اختياري)
-    - table_caption: عنوان الجدول (اختياري)
-    - closing_text: نص الخاتمة
-    - signature_name: اسم الموقع
-    - signature_title: صفة الموقع
-    - note: ملاحظة/تنبيه
-    - output_dir: مسار الحفظ
-    - filename: اسم الملف
-    """
+    """دالة شاملة لإنشاء خطاب احترافي كامل - مع تنظيف تلقائي للترقيم"""
     from core.config import WORKSPACE_DIR
+    import re
     
     doc = Document()
     setup_document(doc)
-    
-    # الرأس
     add_elegant_header(doc, organization_name, title)
-    
-    # المعلومات
     add_document_info(doc, recipient=recipient, subject=subject)
-    
-    # التحية
     add_greeting(doc)
     
-    # المحتوى
-    add_content_paragraphs(doc, paragraphs, numbered=True)
+    # تنظيف الفقرات من الترقيم التلقائي
+    cleaned_paragraphs = []
+    for para_text in paragraphs:
+        # إزالة أي رقم في بداية النص (عربي أو إنجليزي)
+        cleaned = re.sub(r'^[\d\u0660-\u0669]+[\.\-\)]\s*', '', para_text.strip())
+        cleaned_paragraphs.append(cleaned)
     
-    # الجدول (إن وجد)
+    # إضافة الفقرات المنظفة
+    for para_text in cleaned_paragraphs:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        p.paragraph_format.first_line_indent = Cm(1.5)
+        p.paragraph_format.line_spacing = 1.6
+        p.paragraph_format.space_after = Pt(10)
+        run = p.add_run(para_text)
+        run.font.name = FONTS['body']
+        run.font.size = Pt(SIZES['body'])
+        run.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
+        set_paragraph_rtl(p)
+    
     if table_headers and table_data:
         create_professional_table(doc, table_headers, table_data, table_caption)
     
-    # الخاتمة والتوقيع
     add_closing(doc, closing_text, signature_name, signature_title)
     
-    # الملاحظة
     if note:
         add_note(doc, note)
     
-    # التذييل
     add_footer(doc)
     
-    # الحفظ
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
     
