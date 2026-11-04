@@ -1915,3 +1915,612 @@ def generate_ats_cv(
     
     doc.save(output_path)
     return output_path
+
+# ==========================================
+# 🔄 دالة محاكاة الملفات (Replication)
+# تحلل ملف مرجعي وتولد كود Python لإعادة بنائه
+# ==========================================
+def replicate_document(
+    source_file: str,
+    output_dir: str = None,
+    filename: str = None
+) -> dict:
+    """
+    تحليل ملف مرجعي (Word/Excel) وتوليد كود Python لإعادة بنائه
+    
+    تُستخدم عندما يرفع المستخدم ملفاً ويطلب إنشاء نموذج مماثل.
+    
+    ترجع:
+    {
+        'success': True/False,
+        'file_type': 'excel'/'word',
+        'analysis': {...},  # تحليل الهيكل والتنسيق
+        'generated_code': '...',  # كود Python قابل للتنفيذ
+        'output_path': '...'  # مسار الملف المُنشأ
+    }
+    """
+    from core.config import WORKSPACE_DIR
+    import os
+    
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    file_ext = source_file.lower().split('.')[-1]
+    
+    if file_ext == 'xlsx':
+        return _replicate_excel(source_file, save_dir, filename)
+    elif file_ext == 'docx':
+        return _replicate_word(source_file, save_dir, filename)
+    else:
+        return {
+            'success': False,
+            'error': f'نوع الملف غير مدعوم: {file_ext}. المدعوم: xlsx, docx'
+        }
+
+
+def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> dict:
+    """محاكاة ملف Excel"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    wb = openpyxl.load_workbook(source_file)
+    
+    analysis = {
+        'type': 'excel',
+        'sheets': {},
+        'total_sheets': len(wb.sheetnames)
+    }
+    
+    generated_code_lines = [
+        'import openpyxl',
+        'from openpyxl.styles import Font, PatternFill, Alignment, Border, Side',
+        'from openpyxl.utils import get_column_letter',
+        '',
+        'wb = openpyxl.Workbook()',
+        "if 'Sheet' in wb.sheetnames: del wb['Sheet']",
+        ''
+    ]
+    
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        sheet_info = {
+            'title': sheet_name,
+            'dimensions': ws.dimensions,
+            'merged_cells': [str(m) for m in ws.merged_cells.ranges],
+            'rows': ws.max_row,
+            'cols': ws.max_column,
+            'right_to_left': ws.sheet_view.rightToLeft if ws.sheet_view else False
+        }
+        
+        # استخراج البيانات والتنسيقات (أول 50 صف و20 عمود لتجنب الحجم الكبير)
+        rows_data = []
+        for row_idx in range(1, min(ws.max_row + 1, 50)):
+            row_data = []
+            for col_idx in range(1, min(ws.max_column + 1, 20)):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                cell_info = {
+                    'value': cell.value,
+                    'font': {
+                        'name': cell.font.name,
+                        'size': cell.font.size,
+                        'bold': cell.font.bold,
+                        'italic': cell.font.italic,
+                        'color': str(cell.font.color.rgb) if cell.font.color and cell.font.color.rgb else None
+                    },
+                    'fill': str(cell.fill.start_color.rgb) if cell.fill and cell.fill.start_color and cell.fill.start_color.rgb else None,
+                    'alignment': str(cell.alignment.horizontal) if cell.alignment else None,
+                    'number_format': cell.number_format,
+                    'is_formula': str(cell.value).startswith('=') if cell.value else False
+                }
+                row_data.append(cell_info)
+            rows_data.append(row_data)
+        
+        sheet_info['data'] = rows_data
+        analysis['sheets'][sheet_name] = sheet_info
+        
+        # توليد كود Python لهذه الورقة
+        safe_name = sheet_name.replace("'", "\\'")
+        generated_code_lines.append(f"# ورقة: {sheet_name}")
+        generated_code_lines.append(f"ws = wb.create_sheet(title='{safe_name}')")
+        generated_code_lines.append(f"ws.sheet_view.rightToLeft = True")
+        generated_code_lines.append('')
+        
+        # الخلايا المدمجة
+        for merge_range in sheet_info['merged_cells']:
+            generated_code_lines.append(f"ws.merge_cells('{merge_range}')")
+        
+        # البيانات
+        for row_idx, row_data in enumerate(rows_data, 1):
+            for col_idx, cell_info in enumerate(row_data, 1):
+                col_letter = get_column_letter(col_idx)
+                value = cell_info['value']
+                
+                if value is None:
+                    continue
+                
+                # تحويل القيمة إلى تمثيل Python
+                if isinstance(value, str):
+                    value_repr = f"'{value}'"
+                elif isinstance(value, bool):
+                    value_repr = str(value)
+                else:
+                    value_repr = str(value)
+                
+                generated_code_lines.append(f"cell = ws.cell(row={row_idx}, column={col_idx}, value={value_repr})")
+                
+                # التنسيق
+                if cell_info['font']['bold']:
+                    generated_code_lines.append(f"cell.font = Font(bold=True)")
+                if cell_info['fill']:
+                    generated_code_lines.append(f"cell.fill = PatternFill(start_color='{cell_info['fill']}', fill_type='solid')")
+                if cell_info['number_format'] and cell_info['number_format'] != 'General':
+                    generated_code_lines.append(f"cell.number_format = '{cell_info['number_format']}'")
+                
+                generated_code_lines.append('')
+        
+        # ضبط الأعمدة
+        for col in range(1, min(sheet_info['cols'] + 1, 20)):
+            generated_code_lines.append(f"ws.column_dimensions['{get_column_letter(col)}'].width = 18")
+        
+        generated_code_lines.append('')
+    
+    # كود الحفظ
+    if filename is None:
+        filename = 'replicated_document.xlsx'
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+    
+    output_path = os.path.join(save_dir, filename)
+    safe_path = output_path.replace('\\', '\\\\')
+    generated_code_lines.append(f"output_path = r'{safe_path}'")
+    generated_code_lines.append("wb.save(output_path)")
+    generated_code_lines.append("print(f'SUCCESS: {output_path}')")
+    
+    generated_code = '\n'.join(generated_code_lines)
+    
+    return {
+        'success': True,
+        'file_type': 'excel',
+        'analysis': analysis,
+        'generated_code': generated_code,
+        'output_path': output_path
+    }
+
+
+def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> dict:
+    """محاكاة ملف Word"""
+    from docx import Document
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    
+    doc = Document(source_file)
+    
+    analysis = {
+        'type': 'word',
+        'paragraphs': [],
+        'tables': [],
+        'styles': set()
+    }
+    
+    generated_code_lines = [
+        'from docx import Document',
+        'from docx.shared import Pt, RGBColor',
+        'from docx.enum.text import WD_ALIGN_PARAGRAPH',
+        '',
+        'doc = Document()',
+        ''
+    ]
+    
+    # تحليل الفقرات
+    for para in doc.paragraphs:
+        para_info = {
+            'text': para.text,
+            'style': para.style.name if para.style else None,
+            'alignment': str(para.alignment) if para.alignment else None,
+            'runs': []
+        }
+        
+        for run in para.runs:
+            run_info = {
+                'text': run.text,
+                'bold': run.font.bold,
+                'italic': run.font.italic,
+                'size': str(run.font.size) if run.font.size else None,
+                'color': str(run.font.color.rgb) if run.font.color and run.font.color.rgb else None
+            }
+            para_info['runs'].append(run_info)
+            if para.style and para.style.name:
+                analysis['styles'].add(para.style.name)
+        
+        analysis['paragraphs'].append(para_info)
+        
+        # توليد كود
+        if para.text.strip():
+            safe_text = para.text.replace("'", "\\'").replace('\n', '\\n')
+            generated_code_lines.append(f"p = doc.add_paragraph('{safe_text}')")
+            if para.alignment:
+                generated_code_lines.append(f"p.alignment = WD_ALIGN_PARAGRAPH.{para.alignment}")
+            for run_info in para_info['runs']:
+                if run_info['bold']:
+                    generated_code_lines.append(f"for run in p.runs: run.bold = True")
+            generated_code_lines.append('')
+    
+    # تحليل الجداول
+    for table_idx, table in enumerate(doc.tables):
+        table_data = []
+        for row in table.rows:
+            row_data = [cell.text for cell in row.cells]
+            table_data.append(row_data)
+        analysis['tables'].append(table_data)
+        
+        generated_code_lines.append(f"# جدول {table_idx + 1}")
+        generated_code_lines.append(f"table = doc.add_table(rows={len(table.rows)}, cols={len(table.columns)})")
+        generated_code_lines.append(f"table.style = 'Table Grid'")
+        for row_idx, row_data in enumerate(table_data):
+            for col_idx, cell_text in enumerate(row_data):
+                safe_text = cell_text.replace("'", "\\'")
+                generated_code_lines.append(f"table.cell({row_idx}, {col_idx}).text = '{safe_text}'")
+        generated_code_lines.append('')
+    
+    # كود الحفظ
+    if filename is None:
+        filename = 'replicated_document.docx'
+    if not filename.endswith('.docx'):
+        filename += '.docx'
+    
+    output_path = os.path.join(save_dir, filename)
+    safe_path = output_path.replace('\\', '\\\\')
+    generated_code_lines.append(f"output_path = r'{safe_path}'")
+    generated_code_lines.append("doc.save(output_path)")
+    generated_code_lines.append("print(f'SUCCESS: {output_path}')")
+    
+    generated_code = '\n'.join(generated_code_lines)
+    
+    # تحويل set إلى list للـ JSON
+    analysis['styles'] = list(analysis['styles'])
+    
+    return {
+        'success': True,
+        'file_type': 'word',
+        'analysis': analysis,
+        'generated_code': generated_code,
+        'output_path': output_path
+    }
+    # ==========================================
+# 🎨 دالة التنسيق المرن لتحليلات النموذج
+# تأخذ تحليل النموذج وتنسقه باحترافية
+# ==========================================
+def format_analysis_report(
+    analysis_data: dict,
+    report_title: str,
+    company_name: str = None,
+    period: str = None,
+    output_format: str = 'excel',
+    style: str = 'accounting',
+    output_dir: str = None,
+    filename: str = None
+) -> str:
+    """
+    تنسيق تحليل النموذج في ملف احترافي
+    
+    analysis_data: قاموس يحتوي على تحليل النموذج، مثل:
+    {
+        'summary': 'نص الملخص التنفيذي',
+        'sections': [
+            {
+                'title': 'عنوان القسم',
+                'metrics': [
+                    {'label': 'إجمالي الإيرادات', 'value': 500000, 'change': '+11%'},
+                    ...
+                ],
+                'insights': ['ملاحظة 1', 'ملاحظة 2'],
+                'recommendations': ['توصية 1']
+            }
+        ],
+        'conclusion': 'الخلاصة النهائية',
+        'charts_data': [...]  # اختياري
+    }
+    
+    output_format: 'excel' أو 'word'
+    """
+    from core.config import WORKSPACE_DIR
+    import os
+    
+    if output_format == 'excel':
+        return _format_as_excel(analysis_data, report_title, company_name, period, style, output_dir, filename)
+    elif output_format == 'word':
+        return _format_as_word(analysis_data, report_title, company_name, period, style, output_dir, filename)
+    else:
+        raise ValueError(f"تنسيق غير مدعوم: {output_format}. استخدم 'excel' أو 'word'")
+
+
+def _format_as_excel(analysis_data, report_title, company_name, period, style, output_dir, filename):
+    """تنسيق التحليل كملف Excel احترافي"""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    wb = openpyxl.Workbook()
+    if 'Sheet' in wb.sheetnames:
+        del wb['Sheet']
+    
+    # الأنماط
+    styles_config = {
+        'accounting': {
+            'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
+            'header_font': Font(name="Arial", size=12, bold=True, color="FFFFFF"),
+            'title_color': "1F4E79",
+            'border_color': "B4C7E7",
+            'section_fill': PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
+            'positive_color': "1E8449",
+            'negative_color': "A93226"
+        },
+        'modern': {
+            'header_fill': PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid"),
+            'header_font': Font(name="Calibri", size=12, bold=True, color="FFFFFF"),
+            'title_color': "1E8449",
+            'border_color': "A9DFBF",
+            'section_fill': PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid"),
+            'positive_color': "1E8449",
+            'negative_color': "A93226"
+        }
+    }
+    
+    current_style = styles_config.get(style, styles_config['accounting'])
+    thin_border = Border(
+        left=Side(style="thin", color=current_style['border_color']),
+        right=Side(style="thin", color=current_style['border_color']),
+        top=Side(style="thin", color=current_style['border_color']),
+        bottom=Side(style="thin", color=current_style['border_color'])
+    )
+    
+    # ==========================================
+    # ورقة الملخص التنفيذي
+    # ==========================================
+    ws_summary = wb.create_sheet(title="الملخص التنفيذي")
+    ws_summary.sheet_view.rightToLeft = True
+    
+    # العنوان
+    ws_summary.merge_cells('A1:D1')
+    title_cell = ws_summary['A1']
+    title_text = report_title
+    if company_name:
+        title_text += f"\n{company_name}"
+    if period:
+        title_text += f"\n{period}"
+    title_cell.value = title_text
+    title_cell.font = Font(name="Arial", size=14, bold=True, color=current_style['title_color'])
+    title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_summary.row_dimensions[1].height = 60
+    
+    # الملخص النصي
+    if analysis_data.get('summary'):
+        ws_summary.merge_cells('A3:D3')
+        summary_cell = ws_summary['A3']
+        summary_cell.value = "الملخص التنفيذي"
+        summary_cell.font = Font(name="Arial", size=12, bold=True, color=current_style['title_color'])
+        
+        ws_summary.merge_cells('A4:D6')
+        summary_text = ws_summary['A4']
+        summary_text.value = analysis_data['summary']
+        summary_text.font = Font(name="Arial", size=11)
+        summary_text.alignment = Alignment(wrap_text=True, vertical="top")
+        ws_summary.row_dimensions[4].height = 80
+    
+    # الأقسام
+    current_row = 8
+    for section in analysis_data.get('sections', []):
+        # عنوان القسم
+        ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+        section_title = ws_summary.cell(row=current_row, column=1, value=section.get('title', ''))
+        section_title.font = Font(name="Arial", size=12, bold=True, color=current_style['title_color'])
+        section_title.fill = current_style['section_fill']
+        current_row += 1
+        
+        # المقاييس
+        if section.get('metrics'):
+            headers = ['البند', 'القيمة', 'التغيير', 'ملاحظات']
+            for col_idx, header in enumerate(headers, 1):
+                cell = ws_summary.cell(row=current_row, column=col_idx, value=header)
+                cell.fill = current_style['header_fill']
+                cell.font = current_style['header_font']
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+                cell.border = thin_border
+            current_row += 1
+            
+            for metric in section['metrics']:
+                ws_summary.cell(row=current_row, column=1, value=metric.get('label', '')).border = thin_border
+                value_cell = ws_summary.cell(row=current_row, column=2, value=metric.get('value', ''))
+                value_cell.border = thin_border
+                if isinstance(metric.get('value'), (int, float)):
+                    value_cell.number_format = '#,##0.00'
+                
+                change_cell = ws_summary.cell(row=current_row, column=3, value=metric.get('change', ''))
+                change_cell.border = thin_border
+                # تلوين التغيير
+                change_str = str(metric.get('change', ''))
+                if '+' in change_str:
+                    change_cell.font = Font(color=current_style['positive_color'], bold=True)
+                elif '-' in change_str:
+                    change_cell.font = Font(color=current_style['negative_color'], bold=True)
+                
+                ws_summary.cell(row=current_row, column=4, value=metric.get('notes', '')).border = thin_border
+                current_row += 1
+        
+        # الرؤى
+        if section.get('insights'):
+            current_row += 1
+            ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+            ws_summary.cell(row=current_row, column=1, value="الرؤى والتحليلات").font = Font(bold=True, italic=True)
+            current_row += 1
+            for insight in section['insights']:
+                ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+                ws_summary.cell(row=current_row, column=1, value=f"• {insight}").font = Font(size=10)
+                current_row += 1
+        
+        # التوصيات
+        if section.get('recommendations'):
+            current_row += 1
+            ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+            ws_summary.cell(row=current_row, column=1, value="التوصيات").font = Font(bold=True, italic=True, color="C9A961")
+            current_row += 1
+            for rec in section['recommendations']:
+                ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+                ws_summary.cell(row=current_row, column=1, value=f"✓ {rec}").font = Font(size=10)
+                current_row += 1
+        
+        current_row += 2
+    
+    # الخلاصة
+    if analysis_data.get('conclusion'):
+        ws_summary.merge_cells(f'A{current_row}:D{current_row}')
+        ws_summary.cell(row=current_row, column=1, value="الخلاصة النهائية").font = Font(bold=True, size=12, color=current_style['title_color'])
+        current_row += 1
+        ws_summary.merge_cells(f'A{current_row}:D{current_row+2}')
+        conclusion_cell = ws_summary.cell(row=current_row, column=1, value=analysis_data['conclusion'])
+        conclusion_cell.font = Font(size=11)
+        conclusion_cell.alignment = Alignment(wrap_text=True, vertical="top")
+        ws_summary.row_dimensions[current_row].height = 60
+    
+    # ضبط الأعمدة
+    ws_summary.column_dimensions['A'].width = 30
+    ws_summary.column_dimensions['B'].width = 18
+    ws_summary.column_dimensions['C'].width = 15
+    ws_summary.column_dimensions['D'].width = 40
+    
+    # ==========================================
+    # حفظ الملف
+    # ==========================================
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_title = report_title.replace(' ', '_')[:30]
+        filename = f"تحليل_{safe_title}"
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+    
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    
+    return output_path
+
+
+def _format_as_word(analysis_data, report_title, company_name, period, style, output_dir, filename):
+    """تنسيق التحليل كملف Word احترافي"""
+    from docx import Document
+    from docx.shared import Pt, Cm, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn, nsdecls
+    from docx.oxml import parse_xml
+    
+    doc = Document()
+    
+    # الهوامش
+    section = doc.sections[0]
+    section.top_margin = Cm(2)
+    section.bottom_margin = Cm(2)
+    section.left_margin = Cm(2)
+    section.right_margin = Cm(2)
+    
+    # العنوان الرئيسي
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run(report_title)
+    title_run.font.size = Pt(20)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor.from_string('1F4E79')
+    
+    if company_name:
+        org_para = doc.add_paragraph()
+        org_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        org_run = org_para.add_run(company_name)
+        org_run.font.size = Pt(14)
+        org_run.font.color.rgb = RGBColor.from_string('2E5C8A')
+    
+    if period:
+        period_para = doc.add_paragraph()
+        period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        period_run = period_para.add_run(f"الفترة: {period}")
+        period_run.font.size = Pt(12)
+        period_run.font.italic = True
+    
+    # خط فاصل
+    sep_para = doc.add_paragraph()
+    sep_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    pPr = sep_para._p.get_or_add_pPr()
+    pBdr = parse_xml(
+        f'<w:pBdr {nsdecls("w")}>'
+        f'  <w:bottom w:val="single" w:sz="8" w:space="1" w:color="C9A961"/>'
+        f'</w:pBdr>'
+    )
+    pPr.append(pBdr)
+    
+    # الملخص
+    if analysis_data.get('summary'):
+        doc.add_heading('الملخص التنفيذي', level=1)
+        summary_para = doc.add_paragraph()
+        summary_run = summary_para.add_run(analysis_data['summary'])
+        summary_run.font.size = Pt(12)
+    
+    # الأقسام
+    for section_data in analysis_data.get('sections', []):
+        doc.add_heading(section_data.get('title', ''), level=1)
+        
+        # المقاييس كجدول
+        if section_data.get('metrics'):
+            table = doc.add_table(rows=1, cols=3)
+            table.style = 'Table Grid'
+            headers = ['البند', 'القيمة', 'التغيير']
+            for i, header in enumerate(headers):
+                cell = table.rows[0].cells[i]
+                cell.text = header
+                for paragraph in cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    for run in paragraph.runs:
+                        run.bold = True
+            
+            for metric in section_data['metrics']:
+                row_cells = table.add_row().cells
+                row_cells[0].text = metric.get('label', '')
+                row_cells[1].text = str(metric.get('value', ''))
+                row_cells[2].text = str(metric.get('change', ''))
+        
+        # الرؤى
+        if section_data.get('insights'):
+            doc.add_heading('الرؤى والتحليلات', level=2)
+            for insight in section_data['insights']:
+                p = doc.add_paragraph()
+                p.add_run(f"• {insight}")
+        
+        # التوصيات
+        if section_data.get('recommendations'):
+            doc.add_heading('التوصيات', level=2)
+            for rec in section_data['recommendations']:
+                p = doc.add_paragraph()
+                run = p.add_run(f"✓ {rec}")
+                run.font.color.rgb = RGBColor.from_string('1E8449')
+    
+    # الخلاصة
+    if analysis_data.get('conclusion'):
+        doc.add_heading('الخلاصة النهائية', level=1)
+        conclusion_para = doc.add_paragraph()
+        conclusion_run = conclusion_para.add_run(analysis_data['conclusion'])
+        conclusion_run.font.size = Pt(12)
+        conclusion_run.font.bold = True
+    
+    # الحفظ
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_title = report_title.replace(' ', '_')[:30]
+        filename = f"تحليل_{safe_title}"
+    if not filename.endswith('.docx'):
+        filename += '.docx'
+    
+    output_path = os.path.join(save_dir, filename)
+    doc.save(output_path)
+    
+    return output_path
