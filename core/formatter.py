@@ -1270,7 +1270,7 @@ def generate_styled_letter(
 
 
 # ==========================================
-# 📄 دالة إنشاء سيرة ذاتية متوافقة مع ATS
+# 📄 دالة إنشاء سيرة ذاتية متوافقة مع ATS (موسعة)
 # ==========================================
 def generate_ats_cv(
     full_name,
@@ -1282,17 +1282,29 @@ def generate_ats_cv(
     experience,
     education,
     skills,
+    languages=None,
+    certifications=None,
+    projects=None,
+    interests=None,
+    objective=None,
     output_dir=None,
     filename=None
 ):
-    """إنشاء سيرة ذاتية متوافقة 100% مع أنظمة ATS"""
+    """
+    إنشاء سيرة ذاتية متوافقة 100% مع أنظمة ATS
+    - تنسيق بسيط ونظيف
+    - خطوط قياسية
+    - عناوين واضحة
+    - بدون جداول معقدة
+    """
     from core.config import WORKSPACE_DIR
     
     doc = Document()
     
+    # إعدادات أساسية
     section = doc.sections[0]
-    section.top_margin = Cm(2)
-    section.bottom_margin = Cm(2)
+    section.top_margin = Cm(1.5)
+    section.bottom_margin = Cm(1.5)
     section.left_margin = Cm(2)
     section.right_margin = Cm(2)
     
@@ -1301,9 +1313,9 @@ def generate_ats_cv(
     style.font.size = Pt(11)
     style.font.color.rgb = RGBColor.from_string('000000')
     style.paragraph_format.line_spacing = 1.15
-    style.paragraph_format.space_after = Pt(6)
+    style.paragraph_format.space_after = Pt(4)
 
-    # الاسم الكامل
+    # 1. الاسم الكامل
     name_para = doc.add_paragraph()
     name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_run = name_para.add_run(full_name.upper())
@@ -1312,7 +1324,7 @@ def generate_ats_cv(
     name_run.font.bold = True
     name_run.font.color.rgb = RGBColor.from_string('1B3A5C')
 
-    # معلومات الاتصال
+    # 2. معلومات الاتصال
     contact_para = doc.add_paragraph()
     contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     contact_text = f"{phone} | {email} | {location}"
@@ -1325,10 +1337,11 @@ def generate_ats_cv(
     
     doc.add_paragraph()
 
+    # دالة مساعدة لعناوين الأقسام
     def add_ats_section_title(title_text):
         p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(12)
-        p.paragraph_format.space_after = Pt(6)
+        p.paragraph_format.space_before = Pt(10)
+        p.paragraph_format.space_after = Pt(4)
         p.paragraph_format.bottom_border = parse_xml(
             f'<w:pBdr {nsdecls("w")}>'
             f'  <w:bottom w:val="single" w:sz="4" w:space="1" w:color="1B3A5C"/>'
@@ -1340,71 +1353,151 @@ def generate_ats_cv(
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string('1B3A5C')
 
-    # الملخص المهني
-    add_ats_section_title("ملخص مهني" if any('\u0600' <= c <= '\u06FF' for c in summary) else "Professional Summary")
+    # دالة مساعدة للتحقق من اللغة العربية
+    def is_arabic(text):
+        return any('\u0600' <= c <= '\u06FF' for c in str(text))
+
+    # 3. الهدف المهني (اختياري)
+    if objective:
+        add_ats_section_title("الهدف المهني" if is_arabic(objective) else "Career Objective")
+        obj_para = doc.add_paragraph()
+        obj_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(objective) else WD_ALIGN_PARAGRAPH.LEFT
+        obj_run = obj_para.add_run(objective)
+        obj_run.font.name = 'Calibri'
+        obj_run.font.size = Pt(11)
+
+    # 4. الملخص المهني
+    add_ats_section_title("ملخص مهني" if is_arabic(summary) else "Professional Summary")
     summary_para = doc.add_paragraph()
-    summary_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in summary) else WD_ALIGN_PARAGRAPH.LEFT
+    summary_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(summary) else WD_ALIGN_PARAGRAPH.LEFT
     summary_run = summary_para.add_run(summary)
     summary_run.font.name = 'Calibri'
     summary_run.font.size = Pt(11)
 
-    # الخبرة العملية
-    add_ats_section_title("الخبرة العملية" if any('\u0600' <= c <= '\u06FF' for c in str(experience)) else "Work Experience")
-    for exp in experience:
-        header_p = doc.add_paragraph()
-        header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(exp)) else WD_ALIGN_PARAGRAPH.LEFT
-        
-        role_run = header_p.add_run(exp.get('role', ''))
-        role_run.font.bold = True
-        role_run.font.size = Pt(11)
-        
-        header_p.add_run(" | ")
-        
-        company_run = header_p.add_run(exp.get('company', ''))
-        company_run.font.italic = True
-        
-        header_p.add_run(" | ")
-        
-        date_run = header_p.add_run(exp.get('date', ''))
-        date_run.font.size = Pt(10)
-        date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
-        
-        for responsibility in exp.get('responsibilities', []):
-            bullet_p = doc.add_paragraph()
-            bullet_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in responsibility) else WD_ALIGN_PARAGRAPH.LEFT
-            bullet_p.paragraph_format.left_indent = Cm(0.5)
-            bullet_run = bullet_p.add_run(f"• {responsibility}")
-            bullet_run.font.name = 'Calibri'
-            bullet_run.font.size = Pt(11)
+    # 5. الخبرة العملية
+    if experience:
+        add_ats_section_title("الخبرة العملية" if is_arabic(experience) else "Work Experience")
+        for exp in experience:
+            header_p = doc.add_paragraph()
+            header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(exp) else WD_ALIGN_PARAGRAPH.LEFT
+            
+            role_run = header_p.add_run(exp.get('role', ''))
+            role_run.font.bold = True
+            role_run.font.size = Pt(11)
+            
+            header_p.add_run(" | ")
+            
+            company_run = header_p.add_run(exp.get('company', ''))
+            company_run.font.italic = True
+            
+            header_p.add_run(" | ")
+            
+            date_run = header_p.add_run(exp.get('date', ''))
+            date_run.font.size = Pt(10)
+            date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+            
+            for responsibility in exp.get('responsibilities', []):
+                bullet_p = doc.add_paragraph()
+                bullet_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(responsibility) else WD_ALIGN_PARAGRAPH.LEFT
+                bullet_p.paragraph_format.left_indent = Cm(0.5)
+                bullet_p.paragraph_format.space_after = Pt(2)
+                bullet_run = bullet_p.add_run(f"• {responsibility}")
+                bullet_run.font.name = 'Calibri'
+                bullet_run.font.size = Pt(11)
 
-    # التعليم
-    add_ats_section_title("التعليم" if any('\u0600' <= c <= '\u06FF' for c in str(education)) else "Education")
-    for edu in education:
-        edu_p = doc.add_paragraph()
-        edu_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(edu)) else WD_ALIGN_PARAGRAPH.LEFT
-        
-        degree_run = edu_p.add_run(edu.get('degree', ''))
-        degree_run.font.bold = True
-        
-        edu_p.add_run(" - ")
-        
-        uni_run = edu_p.add_run(edu.get('university', ''))
-        uni_run.font.italic = True
-        
-        edu_p.add_run(" | ")
-        
-        year_run = edu_p.add_run(edu.get('year', ''))
-        year_run.font.size = Pt(10)
-        year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+    # 6. التعليم
+    if education:
+        add_ats_section_title("التعليم" if is_arabic(education) else "Education")
+        for edu in education:
+            edu_p = doc.add_paragraph()
+            edu_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(edu) else WD_ALIGN_PARAGRAPH.LEFT
+            
+            degree_run = edu_p.add_run(edu.get('degree', ''))
+            degree_run.font.bold = True
+            
+            edu_p.add_run(" - ")
+            
+            uni_run = edu_p.add_run(edu.get('university', ''))
+            uni_run.font.italic = True
+            
+            edu_p.add_run(" | ")
+            
+            year_run = edu_p.add_run(edu.get('year', ''))
+            year_run.font.size = Pt(10)
+            year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
 
-    # المهارات
-    add_ats_section_title("المهارات" if any('\u0600' <= c <= '\u06FF' for c in str(skills)) else "Skills")
-    skills_p = doc.add_paragraph()
-    skills_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if any('\u0600' <= c <= '\u06FF' for c in str(skills)) else WD_ALIGN_PARAGRAPH.LEFT
-    skills_text = " • ".join(skills)
-    skills_run = skills_p.add_run(skills_text)
-    skills_run.font.name = 'Calibri'
-    skills_run.font.size = Pt(11)
+    # 7. المهارات (كنقاط)
+    if skills:
+        add_ats_section_title("المهارات" if is_arabic(skills) else "Skills")
+        for skill in skills:
+            skill_p = doc.add_paragraph()
+            skill_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(skill) else WD_ALIGN_PARAGRAPH.LEFT
+            skill_p.paragraph_format.space_after = Pt(2)
+            skill_run = skill_p.add_run(f"• {skill}")
+            skill_run.font.name = 'Calibri'
+            skill_run.font.size = Pt(11)
+
+    # 8. اللغات (جديد)
+    if languages:
+        add_ats_section_title("اللغات" if is_arabic(languages) else "Languages")
+        for lang in languages:
+            lang_p = doc.add_paragraph()
+            lang_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(lang) else WD_ALIGN_PARAGRAPH.LEFT
+            lang_p.paragraph_format.space_after = Pt(2)
+            
+            name_run = lang_p.add_run(lang.get('name', ''))
+            name_run.font.bold = True
+            lang_p.add_run(" - ")
+            level_run = lang_p.add_run(lang.get('level', ''))
+            level_run.font.size = Pt(10)
+
+    # 9. الشهادات (جديد)
+    if certifications:
+        add_ats_section_title("الشهادات" if is_arabic(certifications) else "Certifications")
+        for cert in certifications:
+            cert_p = doc.add_paragraph()
+            cert_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(cert) else WD_ALIGN_PARAGRAPH.LEFT
+            cert_p.paragraph_format.space_after = Pt(2)
+            
+            name_run = cert_p.add_run(cert.get('name', ''))
+            name_run.font.bold = True
+            cert_p.add_run(" | ")
+            issuer_run = cert_p.add_run(cert.get('issuer', ''))
+            cert_p.add_run(" | ")
+            year_run = cert_p.add_run(cert.get('year', ''))
+            year_run.font.size = Pt(10)
+            year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+
+    # 10. المشاريع (جديد)
+    if projects:
+        add_ats_section_title("المشاريع" if is_arabic(projects) else "Projects")
+        for proj in projects:
+            proj_p = doc.add_paragraph()
+            proj_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(proj) else WD_ALIGN_PARAGRAPH.LEFT
+            
+            name_run = proj_p.add_run(proj.get('name', ''))
+            name_run.font.bold = True
+            proj_p.add_run(" | ")
+            date_run = proj_p.add_run(proj.get('date', ''))
+            date_run.font.size = Pt(10)
+            date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
+            
+            if proj.get('description'):
+                desc_p = doc.add_paragraph()
+                desc_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(proj['description']) else WD_ALIGN_PARAGRAPH.LEFT
+                desc_p.paragraph_format.left_indent = Cm(0.5)
+                desc_run = desc_p.add_run(proj['description'])
+                desc_run.font.size = Pt(11)
+
+    # 11. الاهتمامات (جديد)
+    if interests:
+        add_ats_section_title("الاهتمامات" if is_arabic(interests) else "Interests")
+        interests_p = doc.add_paragraph()
+        interests_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(interests) else WD_ALIGN_PARAGRAPH.LEFT
+        interests_text = " • ".join(interests)
+        interests_run = interests_p.add_run(interests_text)
+        interests_run.font.name = 'Calibri'
+        interests_run.font.size = Pt(11)
 
     # الحفظ
     save_dir = output_dir or WORKSPACE_DIR
