@@ -1213,6 +1213,227 @@ def generate_professional_letter(
         filename = f"خطاب_{safe_title}"
     
     filename = get_unique_filename(save_dir, filename, 'docx')
+
+    # ==========================================
+# 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي
+# ==========================================
+def generate_financial_report(
+    report_type: str,
+    company_name: str,
+    period: str,
+    sections: list,
+    currency: str = "ريال",
+    include_totals: bool = True,
+    include_formulas: bool = True,
+    style: str = "accounting",
+    output_dir: str = None,
+    filename: str = None
+) -> str:
+    """
+    إنشاء أي تقرير مالي احترافي بمعايير محاسبية دولية
+    
+    report_type: نوع التقرير
+        - 'income_statement': قائمة الدخل
+        - 'cash_flow_direct': التدفقات النقدية (مباشرة)
+        - 'cash_flow_indirect': التدفقات النقدية (غير مباشرة)
+        - 'equity_statement': قائمة حقوق الملكية
+        - 'balance_sheet': قائمة المركز المالي (الميزانية)
+        - 'trial_balance': ميزان المراجعة
+        - 'fixed_assets': قائمة الأصول الثابتة والإهلاكات
+        - 'sales_report': تقرير المبيعات
+        - 'expenses_report': تقرير المصروفات
+        - 'account_statement': كشف حساب
+        - 'bank_reconciliation': مطابقة بنكية
+    
+    sections: قائمة الأقسام، كل قسم:
+    {
+        'title': 'عنوان القسم',
+        'headers': ['العمود1', 'العمود2', ...],
+        'data': [['بيانات', 1000, 2000], ...],
+        'is_total': False,  # هل هذا صف إجمالي؟
+        'is_subtotal': False  # هل هذا صف إجمالي فرعي؟
+    }
+    
+    style: نمط التنسيق
+        - 'accounting': محاسبي كلاسيكي (أزرق داكن)
+        - 'modern': حديث (أخضر/رمادي)
+        - 'classic': تقليدي (أسود/أبيض)
+    """
+    from core.config import WORKSPACE_DIR
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.utils import get_column_letter
+    from openpyxl.formatting.rule import CellIsRule
+    
+    wb = openpyxl.Workbook()
+    if 'Sheet' in wb.sheetnames:
+        del wb['Sheet']
+    
+    # ==========================================
+    # أنماط التنسيق حسب النوع
+    # ==========================================
+    styles_config = {
+        'accounting': {
+            'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
+            'header_font': Font(name="Arial", size=12, bold=True, color="FFFFFF"),
+            'subtotal_fill': PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
+            'subtotal_font': Font(name="Arial", size=11, bold=True, color="1F4E79"),
+            'total_fill': PatternFill(start_color="2E5C8A", end_color="2E5C8A", fill_type="solid"),
+            'total_font': Font(name="Arial", size=12, bold=True, color="FFFFFF"),
+            'data_font': Font(name="Arial", size=10),
+            'title_color': "1F4E79",
+            'border_color': "B4C7E7"
+        },
+        'modern': {
+            'header_fill': PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid"),
+            'header_font': Font(name="Calibri", size=12, bold=True, color="FFFFFF"),
+            'subtotal_fill': PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid"),
+            'subtotal_font': Font(name="Calibri", size=11, bold=True, color="1E8449"),
+            'total_fill': PatternFill(start_color="145A32", end_color="145A32", fill_type="solid"),
+            'total_font': Font(name="Calibri", size=12, bold=True, color="FFFFFF"),
+            'data_font': Font(name="Calibri", size=10),
+            'title_color': "1E8449",
+            'border_color': "A9DFBF"
+        },
+        'classic': {
+            'header_fill': PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid"),
+            'header_font': Font(name="Times New Roman", size=12, bold=True, color="FFFFFF"),
+            'subtotal_fill': PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid"),
+            'subtotal_font': Font(name="Times New Roman", size=11, bold=True, color="2C3E50"),
+            'total_fill': PatternFill(start_color="1C2833", end_color="1C2833", fill_type="solid"),
+            'total_font': Font(name="Times New Roman", size=12, bold=True, color="FFFFFF"),
+            'data_font': Font(name="Times New Roman", size=10),
+            'title_color': "2C3E50",
+            'border_color': "5D6D7E"
+        }
+    }
+    
+    current_style = styles_config.get(style, styles_config['accounting'])
+    
+    # حدود الخلايا
+    thin_border = Border(
+        left=Side(style="thin", color=current_style['border_color']),
+        right=Side(style="thin", color=current_style['border_color']),
+        top=Side(style="thin", color=current_style['border_color']),
+        bottom=Side(style="thin", color=current_style['border_color'])
+    )
+    
+    # محاذاة
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    
+    # ==========================================
+    # إنشاء ورقة التقرير الرئيسية
+    # ==========================================
+    ws = wb.active
+    ws.title = report_type
+    ws.sheet_view.rightToLeft = True
+    
+    # عنوان التقرير (مدمج)
+    num_cols = max(len(sec['headers']) for sec in sections) if sections else 6
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
+    title_cell = ws.cell(row=1, column=1)
+    title_cell.value = f"{company_name}\n{report_type.replace('_', ' ').title()}\nعن الفترة: {period}"
+    title_cell.font = Font(name="Arial", size=14, bold=True, color=current_style['title_color'])
+    title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 50
+    
+    # ==========================================
+    # إضافة الأقسام والبيانات
+    # ==========================================
+    current_row = 3
+    
+    for sec_idx, section in enumerate(sections):
+        # عنوان القسم
+        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=num_cols)
+        section_title = ws.cell(row=current_row, column=1)
+        section_title.value = section.get('title', '')
+        section_title.font = Font(name="Arial", size=11, bold=True, italic=True, color=current_style['title_color'])
+        section_title.alignment = left_align
+        current_row += 1
+        
+        # رؤوس الأعمدة
+        for col_idx, header in enumerate(section['headers'], 1):
+            cell = ws.cell(row=current_row, column=col_idx, value=header)
+            cell.fill = current_style['header_fill']
+            cell.font = current_style['header_font']
+            cell.alignment = center_align
+            cell.border = thin_border
+        ws.row_dimensions[current_row].height = 25
+        header_row = current_row
+        current_row += 1
+        
+        # بيانات القسم
+        for row_data in section['data']:
+            is_total_row = row_data[-1] if isinstance(row_data[-1], dict) and row_data[-1].get('is_total') else False
+            is_subtotal_row = row_data[-1] if isinstance(row_data[-1], dict) and row_data[-1].get('is_subtotal') else False
+            
+            # استخراج البيانات الفعلية (بدون القاموس إن وجد)
+            clean_data = [item for item in row_data if not isinstance(item, dict)]
+            
+            for col_idx, cell_data in enumerate(clean_data, 1):
+                cell = ws.cell(row=current_row, column=col_idx, value=cell_data)
+                cell.font = current_style['data_font']
+                cell.alignment = right_align if col_idx > 1 else left_align
+                cell.border = thin_border
+                
+                # تنسيق الأرقام المحاسبي
+                if isinstance(cell_data, (int, float)) and col_idx > 1:
+                    cell.number_format = '#,##0.00'
+                
+                # تنسيق صف الإجمالي الفرعي
+                if is_subtotal_row:
+                    cell.fill = current_style['subtotal_fill']
+                    cell.font = current_style['subtotal_font']
+                
+                # تنسيق صف الإجمالي الكلي
+                if is_total_row:
+                    cell.fill = current_style['total_fill']
+                    cell.font = current_style['total_font']
+            
+            current_row += 1
+        
+        # مسافة بين الأقسام
+        current_row += 1
+    
+    # ==========================================
+    # إضافة معادلات Excel التلقائية (إن طُلب)
+    # ==========================================
+    if include_formulas and include_totals:
+        # يمكن إضافة معادلات SUM للأعمدة المالية هنا
+        pass
+    
+    # ==========================================
+    # تجميد الصفوف وتفعيل الفلاتر
+    # ==========================================
+    ws.freeze_panes = 'A4'
+    ws.auto_filter.ref = f"A3:{get_column_letter(num_cols)}{current_row}"
+    
+    # ==========================================
+    # ضبط عرض الأعمدة
+    # ==========================================
+    for col in range(1, num_cols + 1):
+        ws.column_dimensions[get_column_letter(col)].width = 18
+    
+    # ==========================================
+    # حفظ الملف
+    # ==========================================
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_company = company_name.replace(' ', '_')[:20]
+        safe_type = report_type.replace('_', '_')
+        filename = f"{safe_type}_{safe_company}_{period}"
+    
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+    
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    
+    return output_path
     output_path = os.path.join(save_dir, filename)
     
     doc.save(output_path)
