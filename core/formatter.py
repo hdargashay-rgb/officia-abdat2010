@@ -428,8 +428,8 @@ def add_attachments(doc, attachments_list):
         att_run.font.size = Pt(SIZES['body'])
         set_paragraph_rtl(att_item)
 
-def setup_document(doc, margins_cm=2.5):
-    """إعداد المستند بهوامش موحدة"""
+def setup_document(doc, margins_cm=1.8):
+    """إعداد المستند بهوامش أصغر لتوفير المساحة"""
     section = doc.sections[0]
     section.top_margin = Cm(margins_cm)
     section.bottom_margin = Cm(margins_cm)
@@ -440,7 +440,8 @@ def setup_document(doc, margins_cm=2.5):
     style.font.name = FONTS['body']
     style.font.size = Pt(SIZES['body'])
     style.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
-    style.paragraph_format.line_spacing = 1.5
+    style.paragraph_format.line_spacing = 1.3
+    style.paragraph_format.space_after = Pt(6)
 
 def add_footer(doc, footer_text="Officia - الوكيل الذكي للمهام المكتبية"):
     """إضافة تذييل احترافي"""
