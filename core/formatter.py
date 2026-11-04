@@ -1492,6 +1492,187 @@ def generate_styled_letter(
 
 
 # ==========================================
+# 📊 دالة إنشاء تقرير مالي احترافي (مثل Fixed Asset Listing)
+# ==========================================
+def create_fixed_asset_report(
+    company_name: str,
+    year: str,
+    sections: list,
+    output_dir: str = None,
+    filename: str = None
+) -> str:
+    """
+    إنشاء تقرير أصول ثابتة / تقرير مالي متعدد الأوراق بمعايير محاسبية احترافية
+    
+    sections: قائمة تحتوي على أقسام التقرير، كل قسم عبارة عن قاموس:
+    {
+        'sheet_name': 'اسم_الورقة',
+        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'الصافي'],
+        'data': [['A001', 'سيارة', '2023-01-01', 150000, 30000, 120000], ...]
+    }
+    """
+    from core.config import WORKSPACE_DIR
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.utils import get_column_letter
+    
+    wb = openpyxl.Workbook()
+    
+    # إزالة الورقة الافتراضية
+    if 'Sheet' in wb.sheetnames:
+        del wb['Sheet']
+    
+    # ألوان وتنسيقات احترافية
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    header_font = Font(name="Arial", size=12, bold=True, color="FFFFFF")
+    total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    total_font = Font(name="Arial", size=11, bold=True, color="1F4E79")
+    data_font = Font(name="Arial", size=10)
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    
+    thin_border = Border(
+        left=Side(style="thin", color="B4C7E7"),
+        right=Side(style="thin", color="B4C7E7"),
+        top=Side(style="thin", color="B4C7E7"),
+        bottom=Side(style="thin", color="B4C7E7")
+    )
+
+    # 1️⃣ إنشاء ورقة الملخص (Summary)
+    summary_ws = wb.create_sheet(title="ملخص التقرير")
+    summary_ws.sheet_view.rightToLeft = True
+    
+    # عنوان التقرير (خلايا مدمجة)
+    summary_ws.merge_cells('A1:F1')
+    title_cell = summary_ws['A1']
+    title_cell.value = f"تقرير الأصول الثابتة - {company_name} ({year})"
+    title_cell.font = Font(name="Arial", size=16, bold=True, color="1F4E79")
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    summary_ws.row_dimensions[1].height = 40
+    
+    # جدول الملخص
+    summary_headers = ["القسم", "عدد الأصول", "إجمالي التكلفة", "إجمالي الإهلاك", "صافي القيمة"]
+    summary_ws.append(summary_headers)
+    
+    # تنسيق رأس جدول الملخص
+    for col_num, header in enumerate(summary_headers, 1):
+        cell = summary_ws.cell(row=2, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+    
+    summary_ws.row_dimensions[2].height = 25
+    
+    # إضافة بيانات الملخص (حسابات تلقائية بسيطة)
+    total_cost = 0
+    total_depreciation = 0
+    total_net = 0
+    
+    row_idx = 3
+    for sec in sections:
+        data = sec.get('data', [])
+        cost = sum(float(row[3]) if len(row) > 3 and str(row[3]).replace('.','').isdigit() else 0 for row in data)
+        dep = sum(float(row[4]) if len(row) > 4 and str(row[4]).replace('.','').isdigit() else 0 for row in data)
+        net = cost - dep
+        
+        summary_ws.append([sec['sheet_name'], len(data), cost, dep, net])
+        
+        # تنسيق صف البيانات
+        for col_num in range(1, 6):
+            cell = summary_ws.cell(row=row_idx, column=col_num)
+            cell.font = data_font
+            cell.alignment = center_align if col_num == 2 else right_align
+            cell.border = thin_border
+            if col_num in [3, 4, 5]:
+                cell.number_format = '#,##0.00'
+        
+        total_cost += cost
+        total_depreciation += dep
+        total_net += net
+        row_idx += 1
+    
+    # صف الإجمالي النهائي
+    summary_ws.append(["الإجمالي الكلي", "", total_cost, total_depreciation, total_net])
+    for col_num in range(1, 6):
+        cell = summary_ws.cell(row=row_idx, column=col_num)
+        cell.fill = total_fill
+        cell.font = total_font
+        cell.alignment = center_align if col_num in [1, 2] else right_align
+        cell.border = thin_border
+        if col_num in [3, 4, 5]:
+            cell.number_format = '#,##0.00'
+            
+    # ضبط عرض الأعمدة في الملخص
+    for col in range(1, 6):
+        summary_ws.column_dimensions[get_column_letter(col)].width = 18
+
+    # 2️⃣ إنشاء الأوراق التفصيلية لكل قسم
+    for sec in sections:
+        ws = wb.create_sheet(title=sec['sheet_name'])
+        ws.sheet_view.rightToLeft = True
+        
+        # عنوان الورقة
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(sec['headers']))
+        title_cell = ws.cell(row=1, column=1)
+        title_cell.value = f"تفاصيل: {sec['sheet_name']}"
+        title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 30
+        
+        # إضافة الرؤوس
+        ws.append(sec['headers'])
+        header_row = 2
+        for col_num, header in enumerate(sec['headers'], 1):
+            cell = ws.cell(row=header_row, column=col_num)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center_align
+            cell.border = thin_border
+        ws.row_dimensions[header_row].height = 25
+        
+        # إضافة البيانات
+        for row_data in sec['data']:
+            ws.append(row_data)
+            current_row = ws.max_row
+            
+            for col_num, cell_data in enumerate(row_data, 1):
+                cell = ws.cell(row=current_row, column=col_num)
+                cell.font = data_font
+                cell.alignment = center_align if col_num == 1 else right_align
+                cell.border = thin_border
+                
+                # تنسيق محاسبي للأعمدة المالية (افترض أن الأعمدة من 3 فما بعد هي أرقام)
+                if col_num >= 3:
+                    cell.number_format = '#,##0.00'
+        
+        # تجميد الصف العلوي وتفعيل الفلتر
+        ws.freeze_panes = 'A3'
+        ws.auto_filter.ref = f"A2:{get_column_letter(len(sec['headers']))}{ws.max_row}"
+        
+        # ضبط عرض الأعمدة
+        for col in range(1, len(sec['headers']) + 1):
+            ws.column_dimensions[get_column_letter(col)].width = 18
+
+    # 3️⃣ حفظ الملف
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_company = company_name.replace(' ', '_')[:20]
+        filename = f"تقرير_الأصول_{safe_company}_{year}"
+    
+    # إضافة امتداد إذا لم يكن موجوداً
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+        
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    
+    return output_path
+
+# ==========================================
 # 📄 دالة إنشاء سيرة ذاتية متوافقة مع ATS (موسعة)
 # ==========================================
 def generate_ats_cv(
