@@ -78,6 +78,10 @@ class Agent:
 - create_fixed_asset_report(company, year, sections, output_dir)
 - create_professional_invoice(company, client, number, date, items, output_dir)
 
+4️⃣ للتقارير المالية المعقدة (Excel متعدد الأوراق):
+- create_fixed_asset_report(company_name, year, sections, output_dir)
+  (ملاحظة: sections هي قائمة من القواميس، كل قاموس يحتوي على 'sheet_name', 'headers', 'data')
+
 ==========================================
 🎨 الأنماط المتاحة للخطابات:
 ==========================================
@@ -272,6 +276,40 @@ output_path = generate_ats_cv(
         }
     ],
     interests=['القراءة في الاقتصاد العالمي', 'التطوير المهني المستمر', 'التطوع في تعليم المحاسبة للشباب'],
+    output_dir="{WORKSPACE_DIR}"
+)
+print(f"SUCCESS: {{output_path}}")
+```
+
+==========================================
+📝 مثال 4: تقرير مالي متعدد الأوراق (Fixed Asset)
+==========================================
+```python
+from core.formatter import create_fixed_asset_report
+
+sections_data = [
+    {
+        'sheet_name': 'المركبات',
+        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'صافي القيمة'],
+        'data': [
+            ['V-001', 'تويوتا كامري 2023', '2023-01-15', 120000, 24000, 96000],
+            ['V-002', 'هيونداي سوناتا 2022', '2022-06-10', 110000, 33000, 77000]
+        ]
+    },
+    {
+        'sheet_name': 'الأجهزة والمعدات',
+        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'صافي القيمة'],
+        'data': [
+            ['E-001', 'خادم HP ProLiant', '2023-03-01', 45000, 9000, 36000],
+            ['E-002', 'طابعات ليزر (5)', '2023-05-20', 15000, 3000, 12000]
+        ]
+    }
+]
+
+output_path = create_fixed_asset_report(
+    company_name="شركة ردينت للعناية بالسيارات",
+    year="2026",
+    sections=sections_data,
     output_dir="{WORKSPACE_DIR}"
 )
 print(f"SUCCESS: {{output_path}}")
