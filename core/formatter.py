@@ -1526,12 +1526,28 @@ def generate_styled_letter(
 # ==========================================
 # 📊 دالة إنشاء تقرير مالي احترافي (مثل Fixed Asset Listing)
 # ==========================================
+
+# قاموس نسب الإهلاك الافتراضية (طريقة الرصيد المتناقص)
+DEFAULT_DEPRECIATION_RATES = {
+    'المركبات': 33.33,
+    'الأجهزة': 25.00,
+    'الأجهزة والمعدات': 25.00,
+    'المعدات': 25.00,
+    'الأثاث': 20.00,
+    'الأثاث والمفروشات': 20.00,
+    'المفروشات': 20.00,
+    'المباني': 5.00,
+    'البرمجيات': 33.33,
+}
+
 def create_fixed_asset_report(
     company_name: str,
     year: str,
     sections: list,
     output_dir: str = None,
     filename: str = None,
+    assets: list = None,  # ✅ معلمة جديدة: بيانات الأصول التفصيلية
+    include_depreciation_schedule: bool = True,  # ✅ معلمة جديدة: هل نضيف ورقة الإهلاك؟
     **kwargs
 ) -> str:
     """
@@ -1543,6 +1559,19 @@ def create_fixed_asset_report(
         'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'الصافي'],
         'data': [['A001', 'سيارة', '2023-01-01', 150000, 30000, 120000], ...]
     }
+    
+    assets (اختياري): قائمة الأصول التفصيلية لحساب الإهلاك الشهري:
+    [
+        {
+            'asset_id': 'V-001',
+            'description': 'تويوتا هايلكس 2024',
+            'category': 'المركبات',  # يُستخدم لاستخراج نسبة الإهلاك الافتراضية
+            'cost': 185000,
+            'accumulated_dep_start': 37000,
+            'depreciation_rate': 33.33,  # إذا لم يُحدد، يُستخدم الافتراضي حسب الفئة
+            'salvage_value': 0
+        }
+    ]
     """
     from core.config import WORKSPACE_DIR
     import openpyxl
@@ -1688,7 +1717,21 @@ def create_fixed_asset_report(
         for col in range(1, len(sec['headers']) + 1):
             ws.column_dimensions[get_column_letter(col)].width = 18
 
-    # 3️⃣ حفظ الملف
+    # 3️⃣ ✅ إضافة ورقة الإهلاك الشهري (إذا طُلبت)
+    if include_depreciation_schedule and assets:
+        _add_depreciation_sheet(
+            wb=wb,
+            company_name=company_name,
+            year=year,
+            assets=assets,
+            header_fill=header_fill,
+            header_font=header_font,
+            data_font=data_font,
+            thin_border=thin_border,
+            center_align=center_align
+        )
+
+    # 4️⃣ حفظ الملف
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
     
@@ -1707,6 +1750,158 @@ def create_fixed_asset_report(
     print("SUCCESS: " + output_path)
     
     return output_path
+
+
+# ==========================================
+# 📅 دالة داخلية: إضافة ورقة الإهلاك الشهري
+# ==========================================
+def _add_depreciation_sheet(
+    wb,
+    company_name: str,
+    year: str,
+    assets: list,
+    header_fill,
+    header_font,
+    data_font,
+    thin_border,
+    center_align
+):
+    """
+    إضافة ورقة الإهلاك الشهري المضغوط إلى ملف الأصول الثابتة
+    """
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+    
+    ws = wb.create_sheet(title="جدول_الإهلاك_الشهري")
+    ws.sheet_view.rightToLeft = True
+    
+    # الأنماط الخاصة بورقة الإهلاك
+    rate_font = Font(name="Arial", size=10, bold=True, color="C9A961")
+    
+    # ==========================================
+    # العنوان الرئيسي
+    # ==========================================
+    ws.merge_cells('A1:S1')
+    title_cell = ws['A1']
+    title_cell.value = f"جدول الإهلاك الشهري (طريقة الرصيد المتناقص) - {company_name} ({year})"
+    title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
+    title_cell.alignment = center_align
+    ws.row_dimensions[1].height = 30
+    
+    # ==========================================
+    # رؤوس الأعمدة
+    # ==========================================
+    headers = [
+        'رقم الأصل', 'الوصف', 'التكلفة', 'رصيد أول المدة', 'نسبة الإهلاك %',
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+        'إجمالي السنوي', 'رصيد آخر المدة'
+    ]
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+    
+    ws.row_dimensions[2].height = 25
+    
+    # ==========================================
+    # إدخال البيانات والحسابات المحاسبية
+    # ==========================================
+    row = 3
+    months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    
+    for asset in assets:
+        cost = asset.get('cost', 0)
+        acc_dep_start = asset.get('accumulated_dep_start', 0)
+        
+        # استخراج نسبة الإهلاك: إما من الأصل مباشرة أو من الفئة الافتراضية
+        rate = asset.get('depreciation_rate')
+        if rate is None:
+            category = asset.get('category', '')
+            # البحث عن نسبة افتراضية تطابق الفئة
+            rate = DEFAULT_DEPRECIATION_RATES.get(category, 20.00)  # 20% كقيمة افتراضية
+        
+        salvage = asset.get('salvage_value', 0)
+        
+        # الرصيد الدفتري في بداية السنة
+        beg_book_value = cost - acc_dep_start
+        
+        # المعادلة: الإهلاك السنوي = الرصيد المتبقي * النسبة
+        annual_depreciation = beg_book_value * (rate / 100)
+        
+        # التأكد من عدم النزول تحت قيمة الخردة
+        max_allowable_dep = beg_book_value - salvage
+        if annual_depreciation > max_allowable_dep:
+            annual_depreciation = max_allowable_dep
+            
+        # الإهلاك الشهري = السنوي / 12
+        monthly_depreciation = annual_depreciation / 12
+        
+        # --- كتابة البيانات الأساسية ---
+        ws.cell(row=row, column=1, value=asset.get('asset_id', '')).font = data_font
+        ws.cell(row=row, column=2, value=asset.get('description', '')).font = data_font
+        
+        # تنسيق الأرقام الأساسية
+        for col, val in [(3, cost), (4, beg_book_value), (5, rate)]:
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.font = data_font if col != 5 else rate_font
+            cell.alignment = center_align
+            cell.border = thin_border
+            if col == 5:
+                cell.number_format = '0.00"%"'
+            else:
+                cell.number_format = '#,##0.00'
+        
+        # --- كتابة الأشهر والحسابات التراكمية ---
+        current_bv = beg_book_value
+        total_dep_this_year = 0
+        
+        for i, month_col in enumerate(months_indices):
+            if i == 11:  # شهر ديسمبر (ضبط نهائي)
+                month_dep = annual_depreciation - (monthly_depreciation * 11)
+            else:
+                month_dep = monthly_depreciation
+                
+            # التأكد من عدم تجاوز قيمة الخردة في أي شهر
+            if (current_bv - month_dep) < salvage:
+                month_dep = current_bv - salvage
+                
+            cell = ws.cell(row=row, column=month_col, value=month_dep)
+            cell.number_format = '#,##0.00'
+            cell.font = data_font
+            cell.border = thin_border
+            
+            current_bv -= month_dep
+            total_dep_this_year += month_dep
+        
+        # --- الإجماليات النهائية ---
+        total_cell = ws.cell(row=row, column=18, value=total_dep_this_year)
+        total_cell.number_format = '#,##0.00'
+        total_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
+        total_cell.border = thin_border
+        
+        end_bv_cell = ws.cell(row=row, column=19, value=current_bv)
+        end_bv_cell.number_format = '#,##0.00'
+        end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449")
+        end_bv_cell.border = thin_border
+        
+        row += 1
+
+    # ==========================================
+    # التنسيقات النهائية (تجميد وأحجام)
+    # ==========================================
+    ws.freeze_panes = 'C3'
+    
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['B'].width = 25
+    for col in range(3, 20):
+        ws.column_dimensions[get_column_letter(col)].width = 11
+        
+    for r in range(2, row):
+        ws.row_dimensions[r].height = 18
 
 # ==========================================
 # 📄 دالة إنشاء سيرة ذاتية متوافقة مع ATS (موسعة)
