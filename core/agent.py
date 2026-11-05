@@ -304,39 +304,40 @@ print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 6: ميزان المراجعة الشامل (أرصدة + مجاميع)
+📝 مثال 6: ميزان المراجعة الشامل
+==========================================
+⚠️ مهم جداً: accounts يجب أن تكون LIST من DICTS، وليست string!
+⚠️ استخدم الأقواس المربعة [] للقائمة، والأقواس المعقوفة {} لكل حساب
 ==========================================
 ```python
 from core.formatter import generate_trial_balance
 
-# ميزان مراجعة شامل يغطي جميع أنواع الحسابات
+# ✅ accounts = LIST (أقواس مربعة) تحتوي على DICTS (أقواس معقوفة)
 accounts_data = [
-    # ===== الأصول =====
-    {'account_number': '1101', 'account_name': 'الصندوق', 'opening_debit': 50000, 'opening_credit': 0, 'debit_movement': 120000, 'credit_movement': 95000},
-    {'account_number': '1102', 'account_name': 'البنك الأهلي', 'opening_debit': 350000, 'opening_credit': 0, 'debit_movement': 500000, 'credit_movement': 420000},
-    {'account_number': '1201', 'account_name': 'العملاء', 'opening_debit': 180000, 'opening_credit': 0, 'debit_movement': 250000, 'credit_movement': 200000},
-    {'account_number': '1301', 'account_name': 'المخزون', 'opening_debit': 220000, 'opening_credit': 0, 'debit_movement': 180000, 'credit_movement': 150000},
-    {'account_number': '1501', 'account_name': 'الأصول الثابتة', 'opening_debit': 800000, 'opening_credit': 0, 'debit_movement': 50000, 'credit_movement': 0},
-    {'account_number': '1502', 'account_name': 'مجمع الإهلاك', 'opening_debit': 0, 'opening_credit': 160000, 'debit_movement': 0, 'credit_movement': 40000},
-    
-    # ===== الخصوم =====
-    {'account_number': '2101', 'account_name': 'الموردون', 'opening_debit': 0, 'opening_credit': 140000, 'debit_movement': 100000, 'credit_movement': 130000},
-    {'account_number': '2201', 'account_name': 'رواتب مستحقة', 'opening_debit': 0, 'opening_credit': 45000, 'debit_movement': 45000, 'credit_movement': 50000},
-    {'account_number': '2301', 'account_name': 'ضريبة القيمة المضافة', 'opening_debit': 0, 'opening_credit': 25000, 'debit_movement': 15000, 'credit_movement': 20000},
-    
-    # ===== حقوق الملكية =====
-    {'account_number': '3101', 'account_name': 'رأس المال', 'opening_debit': 0, 'opening_credit': 1000000, 'debit_movement': 0, 'credit_movement': 0},
-    {'account_number': '3201', 'account_name': 'الأرباح المحتجزة', 'opening_debit': 0, 'opening_credit': 180000, 'debit_movement': 0, 'credit_movement': 75000},
-    
-    # ===== الإيرادات =====
-    {'account_number': '4101', 'account_name': 'إيرادات المبيعات', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 0, 'credit_movement': 850000},
-    {'account_number': '4201', 'account_name': 'إيرادات الخدمات', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 0, 'credit_movement': 320000},
-    
-    # ===== المصروفات =====
-    {'account_number': '5101', 'account_name': 'رواتب وأجور', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 280000, 'credit_movement': 0},
-    {'account_number': '5201', 'account_name': 'إيجارات', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 60000, 'credit_movement': 0},
-    {'account_number': '5301', 'account_name': 'مرافق وكهرباء', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 35000, 'credit_movement': 0},
-    {'account_number': '5401', 'account_name': 'مصروفات إدارية', 'opening_debit': 0, 'opening_credit': 0, 'debit_movement': 45000, 'credit_movement': 0}
+    {
+        'account_number': '1101',
+        'account_name': 'الصندوق',
+        'opening_debit': 50000,
+        'opening_credit': 0,
+        'debit_movement': 120000,
+        'credit_movement': 95000
+    },
+    {
+        'account_number': '1102',
+        'account_name': 'البنك الأهلي',
+        'opening_debit': 350000,
+        'opening_credit': 0,
+        'debit_movement': 500000,
+        'credit_movement': 420000
+    },
+    {
+        'account_number': '2101',
+        'account_name': 'الموردون',
+        'opening_debit': 0,
+        'opening_credit': 140000,
+        'debit_movement': 100000,
+        'credit_movement': 130000
+    }
 ]
 
 output_path = generate_trial_balance(
