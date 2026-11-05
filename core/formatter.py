@@ -2524,3 +2524,197 @@ def _format_as_word(analysis_data, report_title, company_name, period, style, ou
     doc.save(output_path)
     
     return output_path
+
+# ==========================================
+# 📅 جدول الإهلاك الشهري المضغوط (طريقة الرصيد المتناقص)
+# ==========================================
+def generate_depreciation_schedule(
+    company_name: str,
+    year: str,
+    assets: list,
+    output_dir: str = None,
+    filename: str = None
+) -> str:
+    """
+    إنشاء جدول إهلاك شهري مضغوط واحترافي
+    
+    assets: قائمة الأصول، كل أصل:
+    {
+        'asset_id': 'V-001',
+        'description': 'تويوتا هايلكس 2024',
+        'cost': 185000,
+        'accumulated_dep_start': 37000,  # مجمع الإهلاك في بداية السنة
+        'depreciation_rate': 33.33,      # نسبة الإهلاك السنوية %
+        'salvage_value': 0               # قيمة الخردة
+    }
+    """
+    from core.config import WORKSPACE_DIR
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    wb = openpyxl.Workbook()
+    if 'Sheet' in wb.sheetnames:
+        del wb['Sheet']
+    
+    ws = wb.active
+    ws.title = "جدول_الإهلاك_الشهري"
+    ws.sheet_view.rightToLeft = True
+    
+    # ==========================================
+    # 1. الأنماط والتنسيقات
+    # ==========================================
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    data_font = Font(name="Arial", size=9)
+    rate_font = Font(name="Arial", size=10, bold=True, color="C9A961") # لون ذهبي للنسبة
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right_align = Alignment(horizontal="right", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin", color="B4C7E7"),
+        right=Side(style="thin", color="B4C7E7"),
+        top=Side(style="thin", color="B4C7E7"),
+        bottom=Side(style="thin", color="B4C7E7")
+    )
+    
+    # ==========================================
+    # 2. العنوان الرئيسي
+    # ==========================================
+    ws.merge_cells('A1:S1')
+    title_cell = ws['A1']
+    title_cell.value = f"جدول الإهلاك الشهري (طريقة الرصيد المتناقص) - {company_name} ({year})"
+    title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
+    title_cell.alignment = center_align
+    ws.row_dimensions[1].height = 30
+    
+    # ==========================================
+    # 3. رؤوس الأعمدة (مضغوطة واحترافية)
+    # ==========================================
+    headers = [
+        'رقم الأصل', 'الوصف', 'التكلفة', 'رصيد أول المدة', 'نسبة الإهلاك %',
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
+        'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+        'إجمالي السنوي', 'رصيد آخر المدة'
+    ]
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+    
+    ws.row_dimensions[2].height = 25
+    
+    # ==========================================
+    # 4. إدخال البيانات والحسابات المحاسبية
+    # ==========================================
+    row = 3
+    months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] # أعمدة الأشهر
+    
+    for asset in assets:
+        cost = asset['cost']
+        acc_dep_start = asset.get('accumulated_dep_start', 0)
+        rate = asset['depreciation_rate']
+        salvage = asset.get('salvage_value', 0)
+        
+        # الرصيد الدفتري في بداية السنة
+        beg_book_value = cost - acc_dep_start
+        
+        # المعادلة: الإهلاك السنوي = الرصيد المتبقي * النسبة
+        annual_depreciation = beg_book_value * (rate / 100)
+        
+        # التأكد من عدم النزول تحت قيمة الخردة
+        max_allowable_dep = beg_book_value - salvage
+        if annual_depreciation > max_allowable_dep:
+            annual_depreciation = max_allowable_dep
+            
+        # الإهلاك الشهري = السنوي / 12
+        monthly_depreciation = annual_depreciation / 12
+        
+        # --- كتابة البيانات الأساسية ---
+        ws.cell(row=row, column=1, value=asset['asset_id']).font = data_font
+        ws.cell(row=row, column=2, value=asset['description']).font = data_font
+        
+        # تنسيق الأرقام الأساسية
+        for col, val in [(3, cost), (4, beg_book_value), (5, rate)]:
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.font = data_font if col != 5 else rate_font
+            cell.alignment = center_align
+            cell.border = thin_border
+            if col == 5:
+                cell.number_format = '0.00"%"'
+            else:
+                cell.number_format = '#,##0.00'
+        
+        # --- كتابة الأشهر والحسابات التراكمية ---
+        current_bv = beg_book_value
+        total_dep_this_year = 0
+        
+        for i, month_col in enumerate(months_indices):
+            # حساب الإهلاك لهذا الشهر (قد يختلف الشهر الأخير لضبط الفرق)
+            if i == 11: # شهر ديسمبر (ضبط نهائي)
+                month_dep = annual_depreciation - (monthly_depreciation * 11)
+            else:
+                month_dep = monthly_depreciation
+                
+            # التأكد من عدم تجاوز قيمة الخردة في أي شهر
+            if (current_bv - month_dep) < salvage:
+                month_dep = current_bv - salvage
+                
+            cell = ws.cell(row=row, column=month_col, value=month_dep)
+            cell.number_format = '#,##0.00'
+            cell.font = data_font
+            cell.border = thin_border
+            
+            current_bv -= month_dep
+            total_dep_this_year += month_dep
+        
+        # --- الإجماليات النهائية ---
+        # إجمالي السنوي
+        total_cell = ws.cell(row=row, column=18, value=total_dep_this_year)
+        total_cell.number_format = '#,##0.00'
+        total_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
+        total_cell.border = thin_border
+        
+        # رصيد آخر المدة
+        end_bv_cell = ws.cell(row=row, column=19, value=current_bv)
+        end_bv_cell.number_format = '#,##0.00'
+        end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449") # أخضر للرصيد النهائي
+        end_bv_cell.border = thin_border
+        
+        row += 1
+
+    # ==========================================
+    # 5. التنسيقات النهائية (تجميد وأحجام)
+    # ==========================================
+    # تجميد الصف الثاني (العناوين) والعمودين الأولين (رقم الأصل والوصف)
+    ws.freeze_panes = 'C3'
+    
+    # ضبط عرض الأعمدة لتكون مضغوطة ومناسبة
+    ws.column_dimensions['A'].width = 12  # رقم الأصل
+    ws.column_dimensions['B'].width = 25  # الوصف
+    for col in range(3, 20): # من التكلفة حتى الرصيد النهائي
+        ws.column_dimensions[get_column_letter(col)].width = 11
+        
+    # ضبط ارتفاع الصفوف ليكون مضغوطاً
+    for r in range(2, row):
+        ws.row_dimensions[r].height = 18
+
+    # ==========================================
+    # 6. حفظ الملف
+    # ==========================================
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_company = company_name.replace(' ', '_')[:20]
+        filename = f"جدول_الاهلاك_الشهري_{safe_company}_{year}"
+    
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+    
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    
+    return output_path
