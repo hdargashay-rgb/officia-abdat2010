@@ -1269,9 +1269,15 @@ def generate_financial_report(
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
     
+    # إنشاء الورقة الرئيسية (بدلاً من wb.active الذي يصبح None)
+    ws = wb.create_sheet(title=report_type)
+    ws.sheet_view.rightToLeft = True
+    
     # ==========================================
     # أنماط التنسيق حسب النوع
     # ==========================================
+    
+
     styles_config = {
         'accounting': {
             'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
@@ -1323,12 +1329,6 @@ def generate_financial_report(
     right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
     left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
     
-    # ==========================================
-    # إنشاء ورقة التقرير الرئيسية
-    # ==========================================
-    ws = wb.active
-    ws.title = report_type
-    ws.sheet_view.rightToLeft = True
     
     # عنوان التقرير (مدمج)
     num_cols = max(len(sec['headers']) for sec in sections) if sections else 6
