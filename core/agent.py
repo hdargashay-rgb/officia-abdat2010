@@ -126,6 +126,10 @@ print("SUCCESS: " + result['output_path'])
 - generate_trial_balance(company_name, period, accounts, output_dir)
   (accounts: قائمة قواميس، كل قاموس: 'account_number', 'account_name', 'opening_debit', 'opening_credit', 'debit_movement', 'credit_movement')
 
+7️⃣ لكشف الرواتب المتكامل (مسير رئيسي، إداري، تشغيلي، وقسائم توقيع):
+- generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
+  (employees: قائمة قواميس، كل قاموس: 'employee_id', 'employee_name', 'department', 'basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'gross_pay', 'insurance_deductions', 'other_deductions', 'net_pay', 'payment_date')
+
 ==========================================
 🎨 الأنماط المتاحة للخطابات:
 ==========================================
@@ -344,6 +348,55 @@ output_path = generate_trial_balance(
     company_name="شركة ردينت للعناية بالسيارات",
     period="2026",
     accounts=accounts_data,
+    output_dir="{WORKSPACE_DIR}"
+)
+print("SUCCESS: " + output_path)
+```
+
+==========================================
+📝 مثال 7: كشف الرواتب المتكامل (مع قسائم التوقيع)
+==========================================
+⚠️ مهم جداً: employees يجب أن تكون LIST من DICTS!
+==========================================
+```python
+from core.formatter import generate_payroll_register
+
+employees_data = [
+    {{
+        'employee_id': 'EMP001',
+        'employee_name': 'أحمد محمد',
+        'department': 'إداري',
+        'basic_salary': 8000,
+        'housing_allowance': 2000,
+        'transport_allowance': 500,
+        'other_allowances': 0,
+        'gross_pay': 10500,
+        'insurance_deductions': 525,
+        'other_deductions': 0,
+        'net_pay': 9975,
+        'payment_date': '2026-01-31'
+    }},
+    {{
+        'employee_id': 'EMP002',
+        'employee_name': 'خالد علي',
+        'department': 'تشغيلي',
+        'basic_salary': 5000,
+        'housing_allowance': 1250,
+        'transport_allowance': 300,
+        'other_allowances': 200,
+        'gross_pay': 6750,
+        'insurance_deductions': 337.5,
+        'other_deductions': 50,
+        'net_pay': 6362.5,
+        'payment_date': '2026-01-31'
+    }}
+]
+
+output_path = generate_payroll_register(
+    company_name="شركة ردينت للعناية بالسيارات",
+    period="يناير 2026",
+    employees=employees_data,
+    include_signature_slips=True,
     output_dir="{WORKSPACE_DIR}"
 )
 print("SUCCESS: " + output_path)
