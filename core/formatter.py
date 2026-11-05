@@ -1180,7 +1180,8 @@ def generate_professional_letter(
     signature_title=None,
     note=None,
     output_dir=None,
-    filename=None
+    filename=None,
+    **kwargs
 ):
     """دالة شاملة لإنشاء خطاب احترافي كامل - مع تنظيف تلقائي للترقيم"""
     from core.config import WORKSPACE_DIR
@@ -1244,7 +1245,8 @@ def generate_financial_report(
     include_formulas: bool = True,
     style: str = "accounting",
     output_dir: str = None,
-    filename: str = None
+    filename: str = None,
+    **kwargs
 ) -> str:
     """
     إنشاء أي تقرير مالي احترافي بمعايير محاسبية دولية
@@ -1483,7 +1485,8 @@ def generate_styled_letter(
     signature_style='single',
     signatures=None,
     output_dir=None,
-    filename=None
+    filename=None,
+    **kwargs
 ):
     """إنشاء خطاب باستخدام نظام الأنماط الديناميكي"""
     from core.config import WORKSPACE_DIR
@@ -1528,7 +1531,8 @@ def create_fixed_asset_report(
     year: str,
     sections: list,
     output_dir: str = None,
-    filename: str = None
+    filename: str = None,
+    **kwargs
 ) -> str:
     """
     إنشاء تقرير أصول ثابتة / تقرير مالي متعدد الأوراق بمعايير محاسبية احترافية
@@ -1723,7 +1727,8 @@ def generate_ats_cv(
     interests=None,
     objective=None,
     output_dir=None,
-    filename=None
+    filename=None,
+    **kwargs
 ):
     """
     إنشاء سيرة ذاتية متوافقة 100% مع أنظمة ATS
@@ -1959,7 +1964,8 @@ def generate_ats_cv(
 def replicate_document(
     source_file: str,
     output_dir: str = None,
-    filename: str = None
+    filename: str = None,
+    **kwargs
 ) -> dict:
     """
     تحليل ملف مرجعي (Word/Excel) وتوليد كود Python لإعادة بنائه
@@ -2235,7 +2241,8 @@ def format_analysis_report(
     output_format: str = 'excel',
     style: str = 'accounting',
     output_dir: str = None,
-    filename: str = None
+    filename: str = None,
+    **kwargs
 ) -> str:
     """
     تنسيق تحليل النموذج في ملف احترافي
@@ -2575,7 +2582,8 @@ def generate_depreciation_schedule(
     year: str,
     assets: list,
     output_dir: str = None,
-    filename: str = None
+    filename: str = None,
+    **kwargs
 ) -> str:
     """
     إنشاء جدول إهلاك شهري مضغوط واحترافي
