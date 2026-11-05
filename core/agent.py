@@ -307,37 +307,37 @@ print("SUCCESS: " + output_path)
 📝 مثال 6: ميزان المراجعة الشامل
 ==========================================
 ⚠️ مهم جداً: accounts يجب أن تكون LIST من DICTS، وليست string!
-⚠️ استخدم الأقواس المربعة [] للقائمة، والأقواس المعقوفة {} لكل حساب
+⚠️ استخدم الأقواس المربعة [] للقائمة، والأقواس المعقوفة {{}} لكل حساب
 ==========================================
 ```python
 from core.formatter import generate_trial_balance
 
 # ✅ accounts = LIST (أقواس مربعة) تحتوي على DICTS (أقواس معقوفة)
 accounts_data = [
-    {
+    {{
         'account_number': '1101',
         'account_name': 'الصندوق',
         'opening_debit': 50000,
         'opening_credit': 0,
         'debit_movement': 120000,
         'credit_movement': 95000
-    },
-    {
+    }},
+    {{
         'account_number': '1102',
         'account_name': 'البنك الأهلي',
         'opening_debit': 350000,
         'opening_credit': 0,
         'debit_movement': 500000,
         'credit_movement': 420000
-    },
-    {
+    }},
+    {{
         'account_number': '2101',
         'account_name': 'الموردون',
         'opening_debit': 0,
         'opening_credit': 140000,
         'debit_movement': 100000,
         'credit_movement': 130000
-    }
+    }}
 ]
 
 output_path = generate_trial_balance(
