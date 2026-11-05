@@ -80,19 +80,21 @@ class Executor:
         ترجع: (code, errors) - إذا كانت هناك دوال مخترعة، code يصبح None
         """
         # قائمة الدوال المسموح بها من core.formatter
-        ALLOWED_FUNCTIONS = {
-            'generate_styled_letter',
-            'generate_ats_cv',
-            'generate_financial_report',
-            'create_fixed_asset_report',
-            'generate_depreciation_schedule',
-            'replicate_document',
-            'format_analysis_report',
-            'create_multi_sheet_excel',
-            'create_professional_invoice',
-            'generate_receipt',
-            'generate_memo'
-        }
+        ALLOWED_FUNCTIONS = ALLOWED_FUNCTIONS = {
+    'generate_styled_letter',
+    'generate_ats_cv',
+    'generate_financial_report',
+    'create_fixed_asset_report',
+    'generate_depreciation_schedule',
+    'generate_trial_balance',
+    'replicate_document',
+    'format_analysis_report',
+    'create_multi_sheet_excel',
+    'create_professional_invoice',
+    'generate_receipt',
+    'generate_memo'
+}
+    
         
         errors = []
         critical_errors = []
