@@ -1717,19 +1717,52 @@ def create_fixed_asset_report(
         for col in range(1, len(sec['headers']) + 1):
             ws.column_dimensions[get_column_letter(col)].width = 18
 
-    # 3️⃣ ✅ إضافة ورقة الإهلاك الشهري (إذا طُلبت)
-    if include_depreciation_schedule and assets:
-        _add_depreciation_sheet(
-            wb=wb,
-            company_name=company_name,
-            year=year,
-            assets=assets,
-            header_fill=header_fill,
-            header_font=header_font,
-            data_font=data_font,
-            thin_border=thin_border,
-            center_align=center_align
-        )
+  # 3️⃣ ✅ إضافة ورقة الإهلاك الشهري (تلقائياً من sections)
+    if include_depreciation_schedule:
+        # استخراج بيانات الأصول من sections تلقائياً
+        extracted_assets = []
+        for sec in sections:
+            sheet_name = sec.get('sheet_name', '')
+            headers = sec.get('headers', [])
+            data = sec.get('data', [])
+            
+            # تحديد أعمدة التكلفة والإهلاك (افتراضياً: العمود 3 = التكلفة، 4 = الإهلاك)
+            cost_col = 3  # العمود الرابع (0-indexed: 3)
+            dep_col = 4   # العمود الخامس (0-indexed: 4)
+            
+            for row in data:
+                if len(row) > dep_col:
+                    asset_id = row[0] if len(row) > 0 else ''
+                    description = row[1] if len(row) > 1 else ''
+                    cost = float(row[cost_col]) if cost_col < len(row) and str(row[cost_col]).replace('.','').isdigit() else 0
+                    accumulated_dep = float(row[dep_col]) if dep_col < len(row) and str(row[dep_col]).replace('.','').isdigit() else 0
+                    
+                    # استخراج نسبة الإهلاك من الفئة
+                    rate = DEFAULT_DEPRECIATION_RATES.get(sheet_name, 20.00)
+                    
+                    extracted_assets.append({
+                        'asset_id': asset_id,
+                        'description': description,
+                        'category': sheet_name,
+                        'cost': cost,
+                        'accumulated_dep_start': accumulated_dep,
+                        'depreciation_rate': rate,
+                        'salvage_value': 0
+                    })
+        
+        # إنشاء ورقة الإهلاك إذا وجدت أصول
+        if extracted_assets:
+            _add_depreciation_sheet(
+                wb=wb,
+                company_name=company_name,
+                year=year,
+                assets=extracted_assets,
+                header_fill=header_fill,
+                header_font=header_font,
+                data_font=data_font,
+                thin_border=thin_border,
+                center_align=center_align
+            )
 
     # 4️⃣ حفظ الملف
     save_dir = output_dir or WORKSPACE_DIR
