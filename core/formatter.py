@@ -2593,9 +2593,9 @@ def generate_depreciation_schedule(
         'asset_id': 'V-001',
         'description': 'تويوتا هايلكس 2024',
         'cost': 185000,
-        'accumulated_dep_start': 37000,  # مجمع الإهلاك في بداية السنة
-        'depreciation_rate': 33.33,      # نسبة الإهلاك السنوية %
-        'salvage_value': 0               # قيمة الخردة
+        'accumulated_dep_start': 37000,
+        'depreciation_rate': 33.33,
+        'salvage_value': 0
     }
     """
     from core.config import WORKSPACE_DIR
@@ -2607,8 +2607,8 @@ def generate_depreciation_schedule(
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
     
-    ws = wb.active
-    ws.title = "جدول_الإهلاك_الشهري"
+    # ✅ إنشاء الورقة مباشرة بالعنوان (بدلاً من wb.active الذي يرجع None)
+    ws = wb.create_sheet(title="جدول_الإهلاك_الشهري")
     ws.sheet_view.rightToLeft = True
     
     # ==========================================
@@ -2617,7 +2617,7 @@ def generate_depreciation_schedule(
     header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
     data_font = Font(name="Arial", size=9)
-    rate_font = Font(name="Arial", size=10, bold=True, color="C9A961") # لون ذهبي للنسبة
+    rate_font = Font(name="Arial", size=10, bold=True, color="C9A961")
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right_align = Alignment(horizontal="right", vertical="center")
     thin_border = Border(
@@ -2660,7 +2660,7 @@ def generate_depreciation_schedule(
     # 4. إدخال البيانات والحسابات المحاسبية
     # ==========================================
     row = 3
-    months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] # أعمدة الأشهر
+    months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     
     for asset in assets:
         cost = asset['cost']
@@ -2668,25 +2668,20 @@ def generate_depreciation_schedule(
         rate = asset['depreciation_rate']
         salvage = asset.get('salvage_value', 0)
         
-        # الرصيد الدفتري في بداية السنة
         beg_book_value = cost - acc_dep_start
         
-        # المعادلة: الإهلاك السنوي = الرصيد المتبقي * النسبة
         annual_depreciation = beg_book_value * (rate / 100)
         
-        # التأكد من عدم النزول تحت قيمة الخردة
         max_allowable_dep = beg_book_value - salvage
         if annual_depreciation > max_allowable_dep:
             annual_depreciation = max_allowable_dep
             
-        # الإهلاك الشهري = السنوي / 12
         monthly_depreciation = annual_depreciation / 12
         
         # --- كتابة البيانات الأساسية ---
         ws.cell(row=row, column=1, value=asset['asset_id']).font = data_font
         ws.cell(row=row, column=2, value=asset['description']).font = data_font
         
-        # تنسيق الأرقام الأساسية
         for col, val in [(3, cost), (4, beg_book_value), (5, rate)]:
             cell = ws.cell(row=row, column=col, value=val)
             cell.font = data_font if col != 5 else rate_font
@@ -2702,13 +2697,11 @@ def generate_depreciation_schedule(
         total_dep_this_year = 0
         
         for i, month_col in enumerate(months_indices):
-            # حساب الإهلاك لهذا الشهر (قد يختلف الشهر الأخير لضبط الفرق)
-            if i == 11: # شهر ديسمبر (ضبط نهائي)
+            if i == 11:
                 month_dep = annual_depreciation - (monthly_depreciation * 11)
             else:
                 month_dep = monthly_depreciation
                 
-            # التأكد من عدم تجاوز قيمة الخردة في أي شهر
             if (current_bv - month_dep) < salvage:
                 month_dep = current_bv - salvage
                 
@@ -2721,16 +2714,14 @@ def generate_depreciation_schedule(
             total_dep_this_year += month_dep
         
         # --- الإجماليات النهائية ---
-        # إجمالي السنوي
         total_cell = ws.cell(row=row, column=18, value=total_dep_this_year)
         total_cell.number_format = '#,##0.00'
         total_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
         total_cell.border = thin_border
         
-        # رصيد آخر المدة
         end_bv_cell = ws.cell(row=row, column=19, value=current_bv)
         end_bv_cell.number_format = '#,##0.00'
-        end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449") # أخضر للرصيد النهائي
+        end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449")
         end_bv_cell.border = thin_border
         
         row += 1
@@ -2738,16 +2729,13 @@ def generate_depreciation_schedule(
     # ==========================================
     # 5. التنسيقات النهائية (تجميد وأحجام)
     # ==========================================
-    # تجميد الصف الثاني (العناوين) والعمودين الأولين (رقم الأصل والوصف)
     ws.freeze_panes = 'C3'
     
-    # ضبط عرض الأعمدة لتكون مضغوطة ومناسبة
-    ws.column_dimensions['A'].width = 12  # رقم الأصل
-    ws.column_dimensions['B'].width = 25  # الوصف
-    for col in range(3, 20): # من التكلفة حتى الرصيد النهائي
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['B'].width = 25
+    for col in range(3, 20):
         ws.column_dimensions[get_column_letter(col)].width = 11
         
-    # ضبط ارتفاع الصفوف ليكون مضغوطاً
     for r in range(2, row):
         ws.row_dimensions[r].height = 18
 
@@ -2767,7 +2755,7 @@ def generate_depreciation_schedule(
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
 
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    # ✅ طبقة الحماية النهائية
     print("SUCCESS: " + output_path)
     
     return output_path
