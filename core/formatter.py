@@ -2987,3 +2987,204 @@ def generate_depreciation_schedule(
     print("SUCCESS: " + output_path)
     
     return output_path
+
+# ==========================================
+# ⚖️ ميزان المراجعة (Trial Balance)
+# أرصدة افتتاحية + حركة + أرصدة ختامية
+# ==========================================
+def generate_trial_balance(
+    company_name: str,
+    period: str,
+    accounts: list,
+    output_dir: str = None,
+    filename: str = None,
+    **kwargs
+) -> str:
+    """
+    إنشاء ميزان مراجعة احترافي
+    
+    accounts: قائمة الحسابات، كل حساب:
+    {
+        'account_number': '1101',
+        'account_name': 'الصندوق',
+        'opening_debit': 50000,     # رصيد افتتاحي مدين
+        'opening_credit': 0,        # رصيد افتتاحي دائن
+        'debit_movement': 20000,    # حركة مدينة
+        'credit_movement': 15000    # حركة دائنة
+    }
+    """
+    from core.config import WORKSPACE_DIR
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    
+    wb = openpyxl.Workbook()
+    if 'Sheet' in wb.sheetnames:
+        del wb['Sheet']
+    
+    ws = wb.create_sheet(title="ميزان_المراجعة")
+    ws.sheet_view.rightToLeft = True
+    
+    # ==========================================
+    # الأنماط
+    # ==========================================
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    total_font = Font(name="Arial", size=11, bold=True, color="1F4E79")
+    data_font = Font(name="Arial", size=10)
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right_align = Alignment(horizontal="right", vertical="center")
+    
+    thin_border = Border(
+        left=Side(style="thin", color="B4C7E7"),
+        right=Side(style="thin", color="B4C7E7"),
+        top=Side(style="thin", color="B4C7E7"),
+        bottom=Side(style="thin", color="B4C7E7")
+    )
+    double_bottom = Border(
+        left=Side(style="thin", color="B4C7E7"),
+        right=Side(style="thin", color="B4C7E7"),
+        top=Side(style="thin", color="B4C7E7"),
+        bottom=Side(style="double", color="1F4E79")
+    )
+    
+    # ==========================================
+    # العنوان
+    # ==========================================
+    ws.merge_cells('A1:H1')
+    title_cell = ws['A1']
+    title_cell.value = f"ميزان المراجعة - {company_name} ({period})"
+    title_cell.font = Font(name="Arial", size=16, bold=True, color="1F4E79")
+    title_cell.alignment = center_align
+    ws.row_dimensions[1].height = 35
+    
+    # ==========================================
+    # رؤوس الأعمدة
+    # ==========================================
+    headers = [
+        'رقم الحساب', 'اسم الحساب',
+        'رصيد افتتاحي مدين', 'رصيد افتتاحي دائن',
+        'حركة مدينة', 'حركة دائنة',
+        'رصيد ختامي مدين', 'رصيد ختامي دائن'
+    ]
+    
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=col, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+    
+    ws.row_dimensions[2].height = 28
+    
+    # ==========================================
+    # إدخال البيانات والحسابات
+    # ==========================================
+    total_opening_dr = 0
+    total_opening_cr = 0
+    total_debit_mov = 0
+    total_credit_mov = 0
+    total_closing_dr = 0
+    total_closing_cr = 0
+    
+    row = 3
+    for acc in accounts:
+        opening_dr = float(acc.get('opening_debit', 0) or 0)
+        opening_cr = float(acc.get('opening_credit', 0) or 0)
+        debit_mov = float(acc.get('debit_movement', 0) or 0)
+        credit_mov = float(acc.get('credit_movement', 0) or 0)
+        
+        # حساب الرصيد الختامي
+        closing_dr = opening_dr + debit_mov - credit_mov
+        closing_cr = 0
+        if closing_dr < 0:
+            closing_cr = abs(closing_dr)
+            closing_dr = 0
+        
+        # كتابة الصف
+        ws.cell(row=row, column=1, value=acc.get('account_number', '')).font = data_font
+        ws.cell(row=row, column=2, value=acc.get('account_name', '')).font = data_font
+        
+        values = [opening_dr, opening_cr, debit_mov, credit_mov, closing_dr, closing_cr]
+        for i, val in enumerate(values, 3):
+            cell = ws.cell(row=row, column=i, value=val if val != 0 else 0)
+            cell.font = data_font
+            cell.alignment = right_align
+            cell.border = thin_border
+            cell.number_format = '#,##0.00'
+        
+        # تجميع الإجماليات
+        total_opening_dr += opening_dr
+        total_opening_cr += opening_cr
+        total_debit_mov += debit_mov
+        total_credit_mov += credit_mov
+        total_closing_dr += closing_dr
+        total_closing_cr += closing_cr
+        
+        row += 1
+    
+    # ==========================================
+    # صف الإجمالي
+    # ==========================================
+    ws.cell(row=row, column=1, value='').border = thin_border
+    total_label = ws.cell(row=row, column=2, value="الإجمالي")
+    total_label.font = total_font
+    total_label.alignment = right_align
+    total_label.border = thin_border
+    
+    totals = [total_opening_dr, total_opening_cr, total_debit_mov, 
+              total_credit_mov, total_closing_dr, total_closing_cr]
+    for i, val in enumerate(totals, 3):
+        cell = ws.cell(row=row, column=i, value=val)
+        cell.font = total_font
+        cell.alignment = right_align
+        cell.fill = total_fill
+        cell.border = double_bottom
+        cell.number_format = '#,##0.00'
+    
+    # ==========================================
+    # التحقق من التوازن
+    # ==========================================
+    row += 2
+    ws.merge_cells(f'A{row}:H{row}')
+    check_cell = ws.cell(row=row, column=1)
+    
+    if abs(total_opening_dr - total_opening_cr) < 0.01 and \
+       abs(total_debit_mov - total_credit_mov) < 0.01 and \
+       abs(total_closing_dr - total_closing_cr) < 0.01:
+        check_cell.value = "✅ الميزان متوازن"
+        check_cell.font = Font(name="Arial", size=11, bold=True, color="1E8449")
+    else:
+        check_cell.value = "⚠️ تنبيه: الميزان غير متوازن - يرجى مراجعة البيانات"
+        check_cell.font = Font(name="Arial", size=11, bold=True, color="A93226")
+    
+    # ==========================================
+    # التنسيقات النهائية
+    # ==========================================
+    ws.column_dimensions['A'].width = 14
+    ws.column_dimensions['B'].width = 30
+    for col in range(3, 9):
+        ws.column_dimensions[get_column_letter(col)].width = 18
+    
+    ws.freeze_panes = 'C3'
+    ws.auto_filter.ref = f"A2:H{row-3}"
+    
+    # ==========================================
+    # حفظ الملف
+    # ==========================================
+    save_dir = output_dir or WORKSPACE_DIR
+    os.makedirs(save_dir, exist_ok=True)
+    
+    if filename is None:
+        safe_company = company_name.replace(' ', '_')[:20]
+        filename = f"ميزان_المراجعة_{safe_company}_{period}"
+    
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
+    
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    
+    print("SUCCESS: " + output_path)
+    return output_path
