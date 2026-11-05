@@ -43,10 +43,9 @@ class Executor:
 
     def validate_and_fix_imports(self, code: str) -> tuple:
         """
-        التحقق من صحة الاستيرادات وإصلاحها تلقائياً
-        تمنع النموذج من اختراع دوال غير موجودة
+        التحقق من صحة الاستيرادات وإيقاف التنفيذ فوراً عند اكتشاف دوال مخترعة
         
-        ترجع: (code_mصحح, قائمة_الأخطاء)
+        ترجع: (code, errors) - إذا كانت هناك دوال مخترعة، code يصبح None
         """
         # قائمة الدوال المسموح بها من core.formatter
         ALLOWED_FUNCTIONS = {
@@ -63,6 +62,7 @@ class Executor:
         }
         
         errors = []
+        critical_errors = []
         
         # استخراج جميع استيرادات formatter
         import_pattern = r'from\s+core\.formatter\s+import\s+([^\n]+)'
@@ -70,21 +70,19 @@ class Executor:
         
         for match in matches:
             functions = [f.strip() for f in match.split(',')]
-            valid_functions = []
             
             for func in functions:
                 func = func.strip()
                 if not func:
                     continue
                     
-                if func in ALLOWED_FUNCTIONS:
-                    valid_functions.append(func)
-                else:
-                    # دالة مخترعة - ابحث عن بديل
-                    error_msg = f"⚠️ دالة غير موجودة: '{func}'"
+                if func not in ALLOWED_FUNCTIONS:
+                    # دالة مخترعة - خطأ حرج
+                    error_msg = f"❌ دالة غير موجودة: '{func}'"
                     errors.append(error_msg)
+                    critical_errors.append(func)
                     
-                    # قاموس البدائل
+                    # قاموس البدائل للمساعدة
                     alternatives = {
                         'generate_income_statement_report': "generate_financial_report(report_type='income_statement')",
                         'generate_balance_sheet_report': "generate_financial_report(report_type='balance_sheet')",
@@ -95,18 +93,21 @@ class Executor:
                         'generate_expenses_report': "generate_financial_report(report_type='expenses_report')",
                         'generate_account_statement': "generate_financial_report(report_type='account_statement')",
                         'generate_bank_reconciliation': "generate_financial_report(report_type='bank_reconciliation')",
+                        'generate_statement': "generate_financial_report",
+                        'generate_financial_statement': "generate_financial_report",
+                        'generate_report': "generate_financial_report",
+                        'create_income_statement': "generate_financial_report",
+                        'create_financial_report': "generate_financial_report",
                     }
                     
                     if func in alternatives:
-                        errors.append(f"   → البديل الصحيح: {alternatives[func]}")
+                        errors.append(f"   💡 البديل الصحيح: {alternatives[func]}")
                     else:
-                        errors.append(f"   → الدوال المتاحة: {', '.join(sorted(ALLOWED_FUNCTIONS))}")
-            
-            # استبدال الاستيراد بالدوال الصحيحة فقط
-            if valid_functions and len(valid_functions) != len(functions):
-                new_import = ', '.join(valid_functions)
-                code = code.replace(match, new_import)
-                print(f"✅ تم إصلاح الاستيراد: {match} → {new_import}")
+                        errors.append(f"   📋 الدوال المتاحة: {', '.join(sorted(ALLOWED_FUNCTIONS))}")
+        
+        # إذا كانت هناك دوال مخترعة، أرجع code=None لإيقاف التنفيذ فوراً
+        if critical_errors:
+            return None, errors
         
         return code, errors
 
@@ -114,25 +115,23 @@ class Executor:
         if timeout is None:
             timeout = self.timeout
 
-        # 🔍 التحقق من الاستيرادات وإصلاحها تلقائياً
+        # 🔍 التحقق من الاستيرادات وإيقاف فوري عند اكتشاف دوال مخترعة
         script_content, import_errors = self.validate_and_fix_imports(script_content)
         
-        if import_errors:
+        if script_content is None:
+            # هناك دوال مخترعة - أوقف التنفيذ فوراً
             print("\n" + "=" * 60)
-            print("⚠️ تحذيرات الاستيراد:")
+            print("🛑 تم إيقاف التنفيذ - دوال غير موجودة:")
             for err in import_errors:
                 print(f"  {err}")
             print("=" * 60 + "\n")
             
-            # إذا كانت هناك دوال مخترعة بدون بديل، أوقف التنفيذ
-            critical = [e for e in import_errors if 'الدوال المتاحة' in e]
-            if critical:
-                return {
-                    'success': False,
-                    'output': '',
-                    'error': 'دوال غير موجودة: ' + '; '.join(critical),
-                    'files_created': []
-                }
+            return {
+                'success': False,
+                'output': '',
+                'error': '\n'.join(import_errors),
+                'files_created': []
+            }
 
         # تطبيق إزالة الترقيم
         script_content = self.remove_numbering_from_paragraphs(script_content)
