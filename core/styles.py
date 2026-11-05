@@ -664,8 +664,8 @@ def apply_signature_style(doc, style_name, signatures=None):
         return
     
     # مسافة قبل التوقيع
-    for _ in range(3):
-        doc.add_paragraph()
+    sig_space = doc.add_paragraph()
+    sig_space.paragraph_format.space_before = Pt(12)
     
     if style['layout'] == 'table' and style['count'] > 1:
         # توقيعات في جدول
