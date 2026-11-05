@@ -114,15 +114,13 @@ print("SUCCESS: " + result['output_path'])
 3️⃣ للتقارير المالية الشاملة (أي نوع تقرير):
 - generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
   (report_type: 'income_statement', 'balance_sheet', 'cash_flow_direct', 'trial_balance', 'sales_report', إلخ)
-  (style: 'accounting', 'modern', 'classic')
 
-4️⃣ لتقارير الأصول الثابتة والإهلاكات (سريعة ومخصصة):
-- create_fixed_asset_report(company_name, year, sections, output_dir)
-  (ملاحظة: sections هي قائمة من القواميس، كل قاموس يحتوي على: 'sheet_name', 'headers', 'data')
+4️⃣ لتقارير الأصول الثابتة المتكاملة (ملف واحد يحتوي على: الملخص، الأوراق التفصيلية، وجدول الإهلاك الشهري):
+- create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
+  (ملاحظة: sections هي قائمة الأقسام. assets هي قائمة تفاصيل الأصول لحساب الإهلاك تلقائياً).
 
-5️⃣ لجدول الإهلاك الشهري المضغوط (طريقة الرصيد المتناقص):
+5️⃣ لجدول الإهلاك الشهري المضغوط فقط (بدون تقرير الأصول الكامل):
 - generate_depreciation_schedule(company_name, year, assets, output_dir)
-  (assets: قائمة قواميس، كل قاموس: 'asset_id', 'description', 'cost', 'accumulated_dep_start', 'depreciation_rate', 'salvage_value')
 
 ==========================================
 🎨 الأنماط المتاحة للخطابات:
@@ -190,7 +188,6 @@ output_path = generate_ats_cv(
 )
 print("SUCCESS: " + output_path)
 ```
-⚠️ تعليمات مهمة للسيرة الذاتية: اكتب محتوى شاملاً، أضف دائماً: languages, certifications, projects, interests. المهارات كنقاط منفصلة (10-15 مهارة).
 
 ==========================================
 📝 مثال 3: تقرير مالي شامل (قائمة الدخل)
@@ -233,41 +230,51 @@ print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 4: تقرير الأصول الثابتة والإهلاكات
+📝 مثال 4: تقرير الأصول الثابتة المتكامل (مع الإهلاك الشهري في ملف واحد)
 ==========================================
 ```python
 from core.formatter import create_fixed_asset_report
 
+# 1. بيانات الأقسام (للملخص وأوراق التفاصيل)
 sections_data = [
     {{
         'sheet_name': 'المركبات',
-        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'صافي القيمة'],
+        'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'],
         'data': [
-            ['V-001', 'تويوتا كامري 2023', '2023-01-15', 120000, 24000, 96000],
-            ['V-002', 'هيونداي سوناتا 2022', '2022-06-10', 110000, 33000, 77000]
+            ['V-001', 'تويوتا هايلكس 2024', 185000, 37000, 148000],
+            ['V-002', 'تويوتا كامري 2023', 145000, 29000, 116000]
         ]
     }},
     {{
         'sheet_name': 'الأجهزة والمعدات',
-        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'صافي القيمة'],
+        'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'],
         'data': [
-            ['E-001', 'خادم HP ProLiant', '2023-03-01', 45000, 9000, 36000],
-            ['E-002', 'طابعات ليزر (5)', '2023-05-20', 15000, 3000, 12000]
+            ['E-001', 'خادم HP ProLiant', 85000, 17000, 68000]
         ]
     }}
 ]
 
+# 2. بيانات الأصول (لإنشاء ورقة الإهلاك الشهري تلقائياً داخل نفس الملف)
+assets_data = [
+    {{'asset_id': 'V-001', 'description': 'تويوتا هايلكس 2024', 'category': 'المركبات', 'cost': 185000, 'accumulated_dep_start': 37000}},
+    {{'asset_id': 'V-002', 'description': 'تويوتا كامري 2023', 'category': 'المركبات', 'cost': 145000, 'accumulated_dep_start': 29000}},
+    {{'asset_id': 'E-001', 'description': 'خادم HP ProLiant', 'category': 'الأجهزة والمعدات', 'cost': 85000, 'accumulated_dep_start': 17000}}
+]
+
+# ✅ استدعاء واحد ينشئ ملفاً واحداً يحتوي على: الملخص، التفاصيل، وجدول الإهلاك
 output_path = create_fixed_asset_report(
     company_name="شركة ردينت للعناية بالسيارات",
     year="2026",
     sections=sections_data,
+    assets=assets_data,  # ✅ تمرير بيانات الأصول لإنشاء ورقة الإهلاك
+    include_depreciation_schedule=True, # ✅ تأكيد إضافة الورقة
     output_dir="{WORKSPACE_DIR}"
 )
 print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 5: جدول الإهلاك الشهري المضغوط
+📝 مثال 5: جدول الإهلاك الشهري المضغوط (فقط عند طلب الإهلاك بدون تقرير الأصول الكامل)
 ==========================================
 ```python
 from core.formatter import generate_depreciation_schedule
@@ -280,14 +287,6 @@ assets_data = [
         'accumulated_dep_start': 37000,
         'depreciation_rate': 33.33,
         'salvage_value': 0
-    }},
-    {{
-        'asset_id': 'E-001',
-        'description': 'خادم HP ProLiant',
-        'cost': 85000,
-        'accumulated_dep_start': 17000,
-        'depreciation_rate': 25.00,
-        'salvage_value': 5000
     }}
 ]
 
@@ -306,7 +305,7 @@ print("SUCCESS: " + output_path)
 - ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات (النظام ينظفها تلقائياً).
 - ممنوع استخدام from docx import Document مباشرة.
 - ممنوع اختراع دوال غير موجودة.
-- اختر الأنماط المناسبة حسب نوع المستند.
+- لتقارير الأصول، استخدم دالة create_fixed_asset_report واحدة لدمج كل الأوراق في ملف واحد.
 
 ⚠️ قاعدة صارمة لـ print:
 ❌ ممنوع تماماً: print(f"SUCCESS: {{output_path}}") أو استخدام f-string مع المتغيرات.
@@ -335,7 +334,7 @@ print("SUCCESS: " + output_path)
 تعليمات التصحيح:
 ==========================================
 1. استخدم الدالة المناسبة من core.formatter
-2. تأكد من تمرير جميع المعاملات المطلوبة
+2. تأكد من تمرير جميع المعاملات المطلوبة (بما في ذلك assets لتقارير الأصول المتكاملة)
 3. اختر الأنماط المناسبة (header_style, content_style, table_style...)
 4. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
 5. ممنوع إضافة أرقام في بداية الفقرات
