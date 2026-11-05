@@ -91,7 +91,7 @@ result = replicate_document(
     source_file='{uploaded_file_path}',
     output_dir='{WORKSPACE_DIR}'
 )
-print(f"SUCCESS: {{result['output_path']}}")
+print("SUCCESS: " + result['output_path'])
 ```
 
 ⚠️ تحذير: ممنوع اختراع دوال، استخدم فقط الدوال المذكورة أعلاه للملفات المرفوعة.
@@ -120,7 +120,7 @@ print(f"SUCCESS: {{result['output_path']}}")
 - create_fixed_asset_report(company_name, year, sections, output_dir)
   (ملاحظة: sections هي قائمة من القواميس، كل قاموس يحتوي على: 'sheet_name', 'headers', 'data')
 
-  5️⃣ لجدول الإهلاك الشهري المضغوط (طريقة الرصيد المتناقص):
+5️⃣ لجدول الإهلاك الشهري المضغوط (طريقة الرصيد المتناقص):
 - generate_depreciation_schedule(company_name, year, assets, output_dir)
   (assets: قائمة قواميس، كل قاموس: 'asset_id', 'description', 'cost', 'accumulated_dep_start', 'depreciation_rate', 'salvage_value')
 
@@ -162,7 +162,7 @@ output_path = generate_styled_letter(
     signatures=[{{'name': 'المحامي عبدالله', 'title': 'المستشار القانوني'}}],
     output_dir="{WORKSPACE_DIR}"
 )
-print(f"SUCCESS: {{output_path}}")
+print("SUCCESS: " + output_path)
 ```
 
 ==========================================
@@ -188,7 +188,7 @@ output_path = generate_ats_cv(
     interests=['القراءة في الاقتصاد', 'التطوير المهني'],
     output_dir="{WORKSPACE_DIR}"
 )
-print(f"SUCCESS: {{output_path}}")
+print("SUCCESS: " + output_path)
 ```
 ⚠️ تعليمات مهمة للسيرة الذاتية: اكتب محتوى شاملاً، أضف دائماً: languages, certifications, projects, interests. المهارات كنقاط منفصلة (10-15 مهارة).
 
@@ -229,7 +229,7 @@ output_path = generate_financial_report(
     style="accounting",
     output_dir="{WORKSPACE_DIR}"
 )
-print(f"SUCCESS: {{output_path}}")
+print("SUCCESS: " + output_path)
 ```
 
 ==========================================
@@ -263,7 +263,7 @@ output_path = create_fixed_asset_report(
     sections=sections_data,
     output_dir="{WORKSPACE_DIR}"
 )
-print(f"SUCCESS: {{output_path}}")
+print("SUCCESS: " + output_path)
 ```
 
 ==========================================
@@ -273,22 +273,22 @@ print(f"SUCCESS: {{output_path}}")
 from core.formatter import generate_depreciation_schedule
 
 assets_data = [
-    {
+    {{
         'asset_id': 'V-001',
         'description': 'تويوتا هايلكس 2024',
         'cost': 185000,
         'accumulated_dep_start': 37000,
         'depreciation_rate': 33.33,
         'salvage_value': 0
-    },
-    {
+    }},
+    {{
         'asset_id': 'E-001',
         'description': 'خادم HP ProLiant',
         'cost': 85000,
         'accumulated_dep_start': 17000,
         'depreciation_rate': 25.00,
         'salvage_value': 5000
-    }
+    }}
 ]
 
 output_path = generate_depreciation_schedule(
@@ -301,12 +301,16 @@ print("SUCCESS: " + output_path)
 ```
         
 ==========================================
-⚠️ تحذيرات مهمة:
+⚠️ تحذيرات حاسمة ومهمة جداً:
 ==========================================
 - ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات (النظام ينظفها تلقائياً).
 - ممنوع استخدام from docx import Document مباشرة.
 - ممنوع اختراع دوال غير موجودة.
 - اختر الأنماط المناسبة حسب نوع المستند.
+
+⚠️ قاعدة صارمة لـ print:
+❌ ممنوع تماماً: print(f"SUCCESS: {{output_path}}") أو استخدام f-string مع المتغيرات.
+✅ مسموح فقط وبشكل حصري: print("SUCCESS: " + output_path)
 
 ==========================================
 الآن نفذ الطلب:
@@ -333,7 +337,7 @@ print("SUCCESS: " + output_path)
 1. استخدم الدالة المناسبة من core.formatter
 2. تأكد من تمرير جميع المعاملات المطلوبة
 3. اختر الأنماط المناسبة (header_style, content_style, table_style...)
-4. اطبع: print(f"SUCCESS: {{output_path}}")
+4. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
 5. ممنوع إضافة أرقام في بداية الفقرات
 
 أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
