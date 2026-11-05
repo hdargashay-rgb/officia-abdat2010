@@ -2992,13 +2992,95 @@ def generate_depreciation_schedule(
 # ⚖️ ميزان المراجعة (Trial Balance)
 # أرصدة افتتاحية + حركة + أرصدة ختامية
 # ==========================================
+
+def _parse_accounts_from_string(text: str) -> list:
+    """
+    دالة مساعدة: تحويل نص الحسابات إلى قائمة قواميس
+    تتعامل مع الصيغ المختلفة التي قد يولدها النموذج
+    """
+    import re
+    accounts = []
+    
+    # تنظيف النص
+    text = text.strip()
+    
+    # محاولة 1: البحث عن قواميس JSON
+    if '{' in text and '}' in text:
+        try:
+            import json
+            # استخراج كل قاموس من النص
+            pattern = r'\{[^}]+\}'
+            matches = re.findall(pattern, text)
+            for match in matches:
+                try:
+                    # تحويل النص إلى قاموس
+                    match = match.replace("'", '"')
+                    acc = json.loads(match)
+                    accounts.append(acc)
+                except:
+                    continue
+        except:
+            pass
+    
+    # محاولة 2: البحث عن أنماط نصية عربية
+    if not accounts:
+        lines = text.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            
+            # البحث عن: رقم الحساب + اسم الحساب + القيم
+            match = re.match(r'(\d{4})\s+([^\s:]+)', line)
+            if match:
+                acc_num = match.group(1)
+                acc_name = match.group(2)
+                
+                # استخراج القيم
+                opening_debit = 0
+                opening_credit = 0
+                debit_movement = 0
+                credit_movement = 0
+                
+                if 'افتتاحي مدين' in line:
+                    m = re.search(r'افتتاحي مدين\s+([\d,]+)', line)
+                    if m:
+                        opening_debit = float(m.group(1).replace(',', ''))
+                
+                if 'افتتاحي دائن' in line:
+                    m = re.search(r'افتتاحي دائن\s+([\d,]+)', line)
+                    if m:
+                        opening_credit = float(m.group(1).replace(',', ''))
+                
+                if 'حركة مدينة' in line:
+                    m = re.search(r'حركة مدينة\s+([\d,]+)', line)
+                    if m:
+                        debit_movement = float(m.group(1).replace(',', ''))
+                
+                if 'حركة دائنة' in line:
+                    m = re.search(r'حركة دائنة\s+([\d,]+)', line)
+                    if m:
+                        credit_movement = float(m.group(1).replace(',', ''))
+                
+                accounts.append({
+                    'account_number': acc_num,
+                    'account_name': acc_name,
+                    'opening_debit': opening_debit,
+                    'opening_credit': opening_credit,
+                    'debit_movement': debit_movement,
+                    'credit_movement': credit_movement
+                })
+    
+    return accounts
+
+
 def generate_trial_balance(
     company_name: str,
     period: str,
     accounts: list,
     output_dir: str = None,
     filename: str = None,
-    **kwargs
+    **kwargs  # ✅ بروتوكول 1: قبول أي معاملات زائدة
 ) -> str:
     """
     إنشاء ميزان مراجعة احترافي
@@ -3007,16 +3089,36 @@ def generate_trial_balance(
     {
         'account_number': '1101',
         'account_name': 'الصندوق',
-        'opening_debit': 50000,     # رصيد افتتاحي مدين
-        'opening_credit': 0,        # رصيد افتتاحي دائن
-        'debit_movement': 20000,    # حركة مدينة
-        'credit_movement': 15000    # حركة دائنة
+        'opening_debit': 50000,
+        'opening_credit': 0,
+        'debit_movement': 20000,
+        'credit_movement': 15000
     }
     """
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
+    
+    # ==========================================
+    # ✅ بروتوكول 3: معالجة ذكية للأنواع
+    # ==========================================
+    if isinstance(accounts, str):
+        print("⚠️ تم تحويل accounts من string إلى list")
+        accounts = _parse_accounts_from_string(accounts)
+    elif isinstance(accounts, dict):
+        print("⚠️ تم تحويل accounts من dict إلى list")
+        accounts = [accounts]
+    
+    # ✅ بروتوكول 4: التحقق من البيانات الفارغة
+    if not accounts:
+        raise ValueError("❌ قائمة الحسابات فارغة. يرجى تمرير بيانات الحسابات.")
+    
+    if not company_name:
+        raise ValueError("❌ اسم الشركة مطلوب.")
+    
+    if not period:
+        raise ValueError("❌ الفترة الزمنية مطلوبة.")
     
     wb = openpyxl.Workbook()
     if 'Sheet' in wb.sheetnames:
@@ -3090,6 +3192,7 @@ def generate_trial_balance(
     
     row = 3
     for acc in accounts:
+        # ✅ بروتوكول 5: قيم افتراضية آمنة
         opening_dr = float(acc.get('opening_debit', 0) or 0)
         opening_cr = float(acc.get('opening_credit', 0) or 0)
         debit_mov = float(acc.get('debit_movement', 0) or 0)
@@ -3186,5 +3289,6 @@ def generate_trial_balance(
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
     
+    # ✅ بروتوكول 2: طبقة الحماية النهائية
     print("SUCCESS: " + output_path)
     return output_path
