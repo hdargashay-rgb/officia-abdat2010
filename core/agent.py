@@ -267,7 +267,7 @@ print(f"SUCCESS: {{output_path}}")
 ```
 
 ==========================================
-📝 مثال 11: جدول الإهلاك الشهري المضغوط
+📝 مثال 5: جدول الإهلاك الشهري المضغوط
 ==========================================
 ```python
 from core.formatter import generate_depreciation_schedule
@@ -297,9 +297,9 @@ output_path = generate_depreciation_schedule(
     assets=assets_data,
     output_dir="{WORKSPACE_DIR}"
 )
-print(f"SUCCESS: {{output_path}}")
+print("SUCCESS: " + output_path)
 ```
-
+        
 ==========================================
 ⚠️ تحذيرات مهمة:
 ==========================================
