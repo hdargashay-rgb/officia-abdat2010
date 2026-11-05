@@ -41,6 +41,38 @@ class Executor:
         
         return result
 
+    def fix_common_code_errors(self, code: str) -> str:
+        """
+        تصحيح الأخطاء الشائعة في الكود المولد تلقائياً
+        
+        هذه الطبقة الأولى من الحماية ضد أخطاء النموذج في كتابة الكود.
+        """
+        # 1. تصحيح f-string المعقد: print(f"SUCCESS: {var}") → print("SUCCESS: " + str(var))
+        code = re.sub(
+            r'print\(f["\']SUCCESS:\s*\{(\w+)\}["\']\)',
+            r'print("SUCCESS: " + str(\1))',
+            code
+        )
+        
+        # 2. تصحيح print مع متغير خاطئ (قاموس أو قائمة بدلاً من output_path)
+        code = re.sub(
+            r'print\((assets|data|sections|headers|sections_data|assets_data)\)',
+            r'pass  # تم حذف طباعة المتغير الخاطئ',
+            code
+        )
+        
+        # 3. تصحيح الأقواس المعقوفة المزدوجة: {{var}} → {var}
+        code = code.replace('{{', '{').replace('}}', '}')
+        
+        # 4. تصحيح print مع dict مباشرة
+        code = re.sub(
+            r'print\((\w+)\["output_path"\]\)',
+            r'print("SUCCESS: " + str(\1["output_path"]))',
+            code
+        )
+        
+        return code
+
     def validate_and_fix_imports(self, code: str) -> tuple:
         """
         التحقق من صحة الاستيرادات وإيقاف التنفيذ فوراً عند اكتشاف دوال مخترعة
@@ -53,6 +85,7 @@ class Executor:
             'generate_ats_cv',
             'generate_financial_report',
             'create_fixed_asset_report',
+            'generate_depreciation_schedule',
             'replicate_document',
             'format_analysis_report',
             'create_multi_sheet_excel',
@@ -98,6 +131,9 @@ class Executor:
                         'generate_report': "generate_financial_report",
                         'create_income_statement': "generate_financial_report",
                         'create_financial_report': "generate_financial_report",
+                        'generate_depreciation': "generate_depreciation_schedule",
+                        'generate_depreciation_report': "generate_depreciation_schedule",
+                        'create_depreciation_schedule': "generate_depreciation_schedule",
                     }
                     
                     if func in alternatives:
@@ -132,6 +168,9 @@ class Executor:
                 'error': '\n'.join(import_errors),
                 'files_created': []
             }
+
+        # 🔧 تصحيح الأخطاء الشائعة في الكود المولد (طبقة حماية إضافية)
+        script_content = self.fix_common_code_errors(script_content)
 
         # تطبيق إزالة الترقيم
         script_content = self.remove_numbering_from_paragraphs(script_content)
