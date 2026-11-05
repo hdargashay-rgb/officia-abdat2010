@@ -637,6 +637,10 @@ def create_multi_sheet_excel(
     output_path = os.path.join(save_dir, filename)
     
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 
@@ -878,7 +882,12 @@ def create_fixed_asset_report(
     output_path = os.path.join(save_dir, filename)
     
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
+    
     # ==========================================
 # دوال Excel متعددة الأغراض
 # ==========================================
@@ -990,6 +999,10 @@ def generate_professional_letter(
     output_path = os.path.join(save_dir, filename)
     
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 
@@ -1144,6 +1157,10 @@ def create_professional_invoice(
     output_path = os.path.join(save_dir, filename)
     
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 # ==========================================
@@ -1433,10 +1450,18 @@ def generate_financial_report(
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
     
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
+    
     output_path = os.path.join(save_dir, filename)
     
     doc.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 # ==========================================
@@ -1488,6 +1513,10 @@ def generate_styled_letter(
     output_path = os.path.join(save_dir, filename)
     
     doc.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 
@@ -1669,6 +1698,9 @@ def create_fixed_asset_report(
         
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
     
     return output_path
 
@@ -1914,6 +1946,10 @@ def generate_ats_cv(
     output_path = os.path.join(save_dir, filename)
     
     doc.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    
     return output_path
 
 # ==========================================
@@ -2403,6 +2439,9 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
     
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
     
     return output_path
 
@@ -2522,6 +2561,9 @@ def _format_as_word(analysis_data, report_title, company_name, period, style, ou
     
     output_path = os.path.join(save_dir, filename)
     doc.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
     
     return output_path
 
@@ -2716,5 +2758,8 @@ def generate_depreciation_schedule(
     
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
+
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
     
     return output_path
