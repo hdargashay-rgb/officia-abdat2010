@@ -95,7 +95,7 @@ class Agent:
                     'code': clean_code
                 }
 
-    def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
+   def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
         routing = self._route_request(user_request)
         routing_instruction = routing['instruction']
         
@@ -135,7 +135,7 @@ print("SUCCESS: " + result['output_path'])
 ⚠️ تحذير: ممنوع اختراع دوال. ابدأ بـ ```python وانهِ بـ ```"""
 
         # ==========================================
-        # السيناريو الثاني: إنشاء مستند جديد (Fallback احترافي)
+        # السيناريو الثاني: Fallback احترافي (لا توجد دالة مخصصة)
         # ==========================================
         if not routing['found']:
             return f"""أنت مبرمج Python خبير متخصص في إنشاء مستندات احترافية بمعايير محاسبية وإدارية عالية.
@@ -173,40 +173,21 @@ print("SUCCESS: " + result['output_path'])
 اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
 
         # ==========================================
-        # السيناريو الثالث: إنشاء مستند جديد (باستخدام دالة موجودة)
+        # السيناريو الثالث: دالة مخصصة موجودة - نعرضها فقط!
         # ==========================================
-        return f"""أنت كاتب محترف ومبرمج Python خبير متخصص في إنشاء مستندات احترافية.
+        
+        # قاموس يحتوي على وصف ومثال كل دالة
+        function_prompts = {
+            'generate_styled_letter': f"""أنت كاتب محترف متخصص في إنشاء الخطابات الرسمية.
 
 {routing_instruction}
 
-⚠️ قاعدة إلزامية: استخدم الدوال من core.formatter فقط حسب نوع المستند المطلوب.
+⚠️ قاعدة إلزامية: استخدم دالة generate_styled_letter فقط.
 
-📚 الدوال المتاحة:
-1️⃣ للخطابات والمذكرات:
+📚 الدالة المتاحة:
 - generate_styled_letter(organization_name, title, recipient, subject, paragraphs, table_headers, table_data, table_caption, header_style, content_style, table_style, footer_style, signature_style, signatures, output_dir)
 
-2️⃣ للسيرة الذاتية المتوافقة مع ATS:
-- generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, languages, certifications, projects, interests, objective, output_dir)
-
-3️⃣ للتقارير المالية الشاملة:
-- generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
-
-4️⃣ لتقارير الأصول الثابتة المتكاملة:
-- create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
-
-5️⃣ لجدول الإهلاك الشهري المضغوط:
-- generate_depreciation_schedule(company_name, year, assets, output_dir)
-
-6️⃣ لميزان المراجعة:
-- generate_trial_balance(company_name, period, accounts, output_dir)
-
-7️⃣ لكشف الرواتب المتكامل (Excel متعدد الأوراق - NOT Word):
-- generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
-  ⚠️ تنشئ ملف Excel يحتوي على: مسير رواتب رئيسي، رواتب إدارية، رواتب تشغيلية، قسائم توقيع
-
-==========================================
-🎨 الأنماط المتاحة للخطابات:
-==========================================
+🎨 الأنماط المتاحة:
 📌 header_style: official, modern, professional, minimal, bold, gradient, celebration, islamic
 📌 content_style: paragraphs, numbered, bullets, compact, mixed, quoted, highlighted, decorative
 📌 table_style: royal_blue, green_finance, dark_elegant, colorful, minimal, accounting, modern_shadows, golden_luxury, purple_royal, rose_elegant
@@ -214,7 +195,7 @@ print("SUCCESS: " + result['output_path'])
 📌 signature_style: single, dual, triple, stamp, multi_level, formal_table
 
 ==========================================
-📝 مثال 1: خطاب رسمي كلاسيكي
+📝 مثال: خطاب رسمي
 ==========================================
 ```python
 from core.formatter import generate_styled_letter
@@ -245,8 +226,31 @@ output_path = generate_styled_letter(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- ممنوع إضافة أرقام في بداية الفقرات.
+- ممنوع اختراع دوال غير موجودة.
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 2: سيرة ذاتية متوافقة مع ATS
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'generate_ats_cv': f"""أنت متخصص في إنشاء السير الذاتية المتوافقة مع ATS.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة generate_ats_cv فقط.
+
+📚 الدالة المتاحة:
+- generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, languages, certifications, projects, interests, objective, output_dir)
+
+==========================================
+📝 مثال: سيرة ذاتية
 ==========================================
 ```python
 from core.formatter import generate_ats_cv
@@ -271,8 +275,32 @@ output_path = generate_ats_cv(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- اكتب محتوى شاملاً.
+- أضف دائماً: languages, certifications, projects, interests.
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 3: تقرير مالي شامل (قائمة الدخل)
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'generate_financial_report': f"""أنت محاسب خبير متخصص في إنشاء التقارير المالية.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة generate_financial_report فقط.
+
+📚 الدالة المتاحة:
+- generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
+  (report_type: 'income_statement', 'balance_sheet', 'cash_flow_direct', 'trial_balance', 'sales_report')
+
+==========================================
+📝 مثال: قائمة الدخل
 ==========================================
 ```python
 from core.formatter import generate_financial_report
@@ -311,8 +339,30 @@ output_path = generate_financial_report(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 4: تقرير الأصول الثابتة المتكامل
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'create_fixed_asset_report': f"""أنت محاسب خبير متخصص في إنشاء تقارير الأصول الثابتة.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة create_fixed_asset_report فقط.
+
+📚 الدالة المتاحة:
+- create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
+  (sections: قائمة الأقسام. assets: قائمة تفاصيل الأصول لحساب الإهلاك تلقائياً)
+
+==========================================
+📝 مثال: تقرير الأصول الثابتة
 ==========================================
 ```python
 from core.formatter import create_fixed_asset_report
@@ -346,8 +396,30 @@ output_path = create_fixed_asset_report(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 5: جدول الإهلاك الشهري المضغوط
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'generate_depreciation_schedule': f"""أنت محاسب خبير متخصص في إنشاء جداول الإهلاك.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة generate_depreciation_schedule فقط.
+
+📚 الدالة المتاحة:
+- generate_depreciation_schedule(company_name, year, assets, output_dir)
+  (assets: قائمة قواميس، كل قاموس: 'asset_id', 'description', 'cost', 'accumulated_dep_start', 'depreciation_rate', 'salvage_value')
+
+==========================================
+📝 مثال: جدول الإهلاك
 ==========================================
 ```python
 from core.formatter import generate_depreciation_schedule
@@ -372,10 +444,31 @@ output_path = generate_depreciation_schedule(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 6: ميزان المراجعة الشامل
+الآن نفذ الطلب:
 ==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'generate_trial_balance': f"""أنت محاسب خبير متخصص في إنشاء ميزان المراجعة.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة generate_trial_balance فقط.
 ⚠️ مهم جداً: accounts يجب أن تكون LIST من DICTS، وليست string!
+
+📚 الدالة المتاحة:
+- generate_trial_balance(company_name, period, accounts, output_dir)
+  (accounts: قائمة قواميس، كل قاموس: 'account_number', 'account_name', 'opening_debit', 'opening_credit', 'debit_movement', 'credit_movement')
+
+==========================================
+📝 مثال: ميزان المراجعة
 ==========================================
 ```python
 from core.formatter import generate_trial_balance
@@ -408,10 +501,33 @@ output_path = generate_trial_balance(
 print("SUCCESS: " + output_path)
 ```
 
+⚠️ تحذيرات:
+- accounts يجب أن تكون LIST من DICTS!
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 ==========================================
-📝 مثال 7: كشف الرواتب المتكامل (Excel - NOT Word)
+الآن نفذ الطلب:
 ==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```""",
+
+            'generate_payroll_register': f"""أنت محاسب خبير متخصص في إنشاء كشوف الرواتب.
+
+{routing_instruction}
+
+⚠️ قاعدة إلزامية: استخدم دالة generate_payroll_register فقط.
 ⚠️ مهم جداً: هذه الدالة تنشئ ملف Excel متعدد الأوراق، وليس خطاب Word!
+⚠️ employees يجب أن تكون LIST من DICTS!
+
+📚 الدالة المتاحة:
+- generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
+  (employees: قائمة قواميس، كل قاموس: 'employee_id', 'employee_name', 'department', 'basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'gross_pay', 'insurance_deductions', 'other_deductions', 'net_pay', 'payment_date')
+
+==========================================
+📝 مثال: كشف الرواتب
 ==========================================
 ```python
 from core.formatter import generate_payroll_register
@@ -456,6 +572,35 @@ output_path = generate_payroll_register(
 )
 print("SUCCESS: " + output_path)
 ```
+
+⚠️ تحذيرات:
+- employees يجب أن تكون LIST من DICTS!
+- هذه الدالة تنشئ ملف Excel، وليس Word!
+- اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
+==========================================
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+{routing_instruction}
+
+ابدأ بـ ```python وانهِ بـ ```"""
+        }
+        
+        # إرجاع الـ prompt الخاص بالدالة المحددة فقط
+        function_name = routing['function']
+        if function_name in function_prompts:
+            return function_prompts[function_name]
+        
+        # Fallback إذا لم توجد الدالة في القاموس
+        return f"""أنت مبرمج Python خبير.
+
+🎯 طلب المستخدم: {user_request}
+
+{routing_instruction}
+
+اكتب كود Python كامل. ابدأ بـ ```python وانهِ بـ ```"""
 
 ==========================================
 ⚠️ تحذيرات حاسمة ومهمة جداً:
