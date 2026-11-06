@@ -14,6 +14,40 @@ class Agent:
         self.max_attempts = MAX_AUTO_FIX_ATTEMPTS
         print("تم تهيئة Agent - الوكيل الذكي")
 
+    def _route_request(self, user_request: str) -> dict:
+        """
+        دالة التوجيه الذكي: تحلل طلب المستخدم وتحدد الإجراء المناسب
+        """
+        request_lower = user_request.lower()
+        
+        routing_rules = {
+            'خطاب': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الخطاب', 'type': 'word'},
+            'مذكرة': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء المذكرة', 'type': 'word'},
+            'رسالة رسمية': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الرسالة', 'type': 'word'},
+            'سيرة ذاتية': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv لإنشاء السيرة الذاتية', 'type': 'word'},
+            'cv': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv لإنشاء السيرة الذاتية', 'type': 'word'},
+            'تقرير مالي': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء التقرير المالي (Excel)', 'type': 'excel'},
+            'قائمة الدخل': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء قائمة الدخل (Excel)', 'type': 'excel'},
+            'ميزان عمومية': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء الميزان العمومي (Excel)', 'type': 'excel'},
+            'أصول ثابتة': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report لإنشاء تقرير الأصول الثابتة (Excel متعدد الأوراق)', 'type': 'excel'},
+            'تقرير الأصول': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report لإنشاء تقرير الأصول (Excel متعدد الأوراق)', 'type': 'excel'},
+            'جدول إهلاك': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule لإنشاء جدول الإهلاك (Excel)', 'type': 'excel'},
+            'إهلاك شهري': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule لإنشاء جدول الإهلاك الشهري (Excel)', 'type': 'excel'},
+            'ميزان مراجعة': {'function': 'generate_trial_balance', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_trial_balance لإنشاء ميزان المراجعة (Excel)', 'type': 'excel'},
+            'كشف رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء كشف الرواتب (Excel متعدد الأوراق مع قسائم توقيع)', 'type': 'excel'},
+            'مسير رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء مسير الرواتب (Excel متعدد الأوراق)', 'type': 'excel'},
+            'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء رواتب الموظفين (Excel متعدد الأوراق)', 'type': 'excel'},
+            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
+            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
+            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
+        }
+        
+        for keyword, rule in routing_rules.items():
+            if keyword in request_lower:
+                return {'found': True, 'function': rule['function'], 'instruction': rule['instruction'], 'type': rule['type']}
+        
+        return {'found': False, 'function': None, 'instruction': '', 'type': 'custom'}
+
     def execute_task(self, user_request: str, uploaded_file_path: str = None) -> dict:
         print("\n" + "=" * 60)
         print("طلب المستخدم: " + user_request)
@@ -62,9 +96,11 @@ class Agent:
                 }
 
     def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
+        routing = self._route_request(user_request)
+        routing_instruction = routing['instruction']
         
         # ==========================================
-        # السيناريو الأول: وجود ملف مرفوع (محاكاة أو تحليل)
+        # السيناريو الأول: وجود ملف مرفوع
         # ==========================================
         if uploaded_file_path:
             return f"""أنت وكيل ذكي متخصص في تحليل المستندات وإنشاء ملفات مشابهة.
@@ -72,10 +108,12 @@ class Agent:
 📎 تم رفع ملف مرجعي: {uploaded_file_path}
 🎯 طلب المستخدم: {user_request}
 
+{routing_instruction}
+
 ⚠️ قاعدة إلزامية: استخدم الدوال المخصصة للملفات المرفوعة من core.formatter.
 
 📚 الدوال المتاحة:
-1️⃣ لمحاكاة الملف (إعادة بنائه بنفس التنسيق والمعادلات):
+1️⃣ لمحاكاة الملف:
 - replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
 
 2️⃣ لتنسيق تحليل النموذج الذكي:
@@ -94,41 +132,77 @@ result = replicate_document(
 print("SUCCESS: " + result['output_path'])
 ```
 
-⚠️ تحذير: ممنوع اختراع دوال، استخدم فقط الدوال المذكورة أعلاه للملفات المرفوعة.
-ابدأ بـ ```python وانهِ بـ ```"""
+⚠️ تحذير: ممنوع اختراع دوال. ابدأ بـ ```python وانهِ بـ ```"""
 
         # ==========================================
-        # السيناريو الثاني: إنشاء مستند جديد من الصفر
+        # السيناريو الثاني: إنشاء مستند جديد (Fallback احترافي)
+        # ==========================================
+        if not routing['found']:
+            return f"""أنت مبرمج Python خبير متخصص في إنشاء مستندات احترافية بمعايير محاسبية وإدارية عالية.
+
+🎯 طلب المستخدم: {user_request}
+
+⚠️ لا توجد دالة مخصصة جاهزة لهذا الطلب في مكتبة core.formatter.
+✅ الحل: اكتب كود Python كامل من الصفر لتنفيذ هذا الطلب بمعايير احترافية صارمة.
+
+==========================================
+🎨 بروتوكول التنسيق الاحترافي (إلزامي):
+==========================================
+📊 للملفات Excel (openpyxl):
+1. استخدم أنماط احترافية: header_fill (لون 1F4E79), header_font (Arial, 12, bold, white), data_font (Arial, 10).
+2. أضف عنواناً رئيسياً مدمجاً في الصف الأول، ورؤوس أعمدة ملونة في الصف الثاني.
+3. استخدم تنسيق الأرقام: '#,##0.00' للأعمدة المالية.
+4. أضف صف "إجمالي" في النهاية بخط عريض.
+5. فعّل: ws.sheet_view.rightToLeft = True و ws.freeze_panes = 'A3' و ws.auto_filter.
+6. اضبط عرض الأعمدة بشكل مناسب.
+
+📄 للملفات Word (python-docx):
+1. أضف عنواناً رئيسياً بخط كبير وعريض ومحاذاة وسط.
+2. استخدم جداول منسقة (Table) للبيانات مع حدود واضحة.
+3. أضف تذييل (Footer) يحتوي على التوقيع والتاريخ.
+
+📁 الحفظ والطباعة:
+- احفظ الملف في: {WORKSPACE_DIR}
+- اطبع مسار الملف بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
+==========================================
+الآن نفذ الطلب:
+==========================================
+{user_request}
+
+اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
+
+        # ==========================================
+        # السيناريو الثالث: إنشاء مستند جديد (باستخدام دالة موجودة)
         # ==========================================
         return f"""أنت كاتب محترف ومبرمج Python خبير متخصص في إنشاء مستندات احترافية.
+
+{routing_instruction}
 
 ⚠️ قاعدة إلزامية: استخدم الدوال من core.formatter فقط حسب نوع المستند المطلوب.
 
 📚 الدوال المتاحة:
-1️⃣ للخطابات والمذكرات بأنماط متنوعة:
+1️⃣ للخطابات والمذكرات:
 - generate_styled_letter(organization_name, title, recipient, subject, paragraphs, table_headers, table_data, table_caption, header_style, content_style, table_style, footer_style, signature_style, signatures, output_dir)
 
 2️⃣ للسيرة الذاتية المتوافقة مع ATS:
 - generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, languages, certifications, projects, interests, objective, output_dir)
 
-3️⃣ للتقارير المالية الشاملة (أي نوع تقرير):
+3️⃣ للتقارير المالية الشاملة:
 - generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
-  (report_type: 'income_statement', 'balance_sheet', 'cash_flow_direct', 'trial_balance', 'sales_report', إلخ)
 
-4️⃣ لتقارير الأصول الثابتة المتكاملة (ملف واحد يحتوي على: الملخص، الأوراق التفصيلية، وجدول الإهلاك الشهري):
+4️⃣ لتقارير الأصول الثابتة المتكاملة:
 - create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
-  (ملاحظة: sections هي قائمة الأقسام. assets هي قائمة تفاصيل الأصول لحساب الإهلاك تلقائياً).
 
-5️⃣ لجدول الإهلاك الشهري المضغوط فقط (بدون تقرير الأصول الكامل):
+5️⃣ لجدول الإهلاك الشهري المضغوط:
 - generate_depreciation_schedule(company_name, year, assets, output_dir)
 
-6️⃣ لميزان المراجعة (أرصدة افتتاحية + حركة + أرصدة ختامية):
+6️⃣ لميزان المراجعة:
 - generate_trial_balance(company_name, period, accounts, output_dir)
-  (accounts: قائمة قواميس، كل قاموس: 'account_number', 'account_name', 'opening_debit', 'opening_credit', 'debit_movement', 'credit_movement')
 
-7️⃣ لكشف الرواتب المتكامل (مسير رئيسي، إداري، تشغيلي، وقسائم توقيع):
+7️⃣ لكشف الرواتب المتكامل (Excel متعدد الأوراق - NOT Word):
 - generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
-  (employees: قائمة قواميس، كل قاموس: 'employee_id', 'employee_name', 'department', 'basic_salary', 'housing_allowance', 'transport_allowance', 'other_allowances', 'gross_pay', 'insurance_deductions', 'other_deductions', 'net_pay', 'payment_date')
+  ⚠️ تنشئ ملف Excel يحتوي على: مسير رواتب رئيسي، رواتب إدارية، رواتب تشغيلية، قسائم توقيع
 
 ==========================================
 🎨 الأنماط المتاحة للخطابات:
@@ -238,51 +312,42 @@ print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 4: تقرير الأصول الثابتة المتكامل (مع الإهلاك الشهري في ملف واحد)
+📝 مثال 4: تقرير الأصول الثابتة المتكامل
 ==========================================
 ```python
 from core.formatter import create_fixed_asset_report
 
-# 1. بيانات الأقسام (للملخص وأوراق التفاصيل)
 sections_data = [
     {{
         'sheet_name': 'المركبات',
         'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'],
-        'data': [
-            ['V-001', 'تويوتا هايلكس 2024', 185000, 37000, 148000],
-            ['V-002', 'تويوتا كامري 2023', 145000, 29000, 116000]
-        ]
+        'data': [['V-001', 'تويوتا هايلكس 2024', 185000, 37000, 148000]]
     }},
     {{
         'sheet_name': 'الأجهزة والمعدات',
         'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'],
-        'data': [
-            ['E-001', 'خادم HP ProLiant', 85000, 17000, 68000]
-        ]
+        'data': [['E-001', 'خادم HP ProLiant', 85000, 17000, 68000]]
     }}
 ]
 
-# 2. بيانات الأصول (لإنشاء ورقة الإهلاك الشهري تلقائياً داخل نفس الملف)
 assets_data = [
     {{'asset_id': 'V-001', 'description': 'تويوتا هايلكس 2024', 'category': 'المركبات', 'cost': 185000, 'accumulated_dep_start': 37000}},
-    {{'asset_id': 'V-002', 'description': 'تويوتا كامري 2023', 'category': 'المركبات', 'cost': 145000, 'accumulated_dep_start': 29000}},
     {{'asset_id': 'E-001', 'description': 'خادم HP ProLiant', 'category': 'الأجهزة والمعدات', 'cost': 85000, 'accumulated_dep_start': 17000}}
 ]
 
-# ✅ استدعاء واحد ينشئ ملفاً واحداً يحتوي على: الملخص، التفاصيل، وجدول الإهلاك
 output_path = create_fixed_asset_report(
     company_name="شركة ردينت للعناية بالسيارات",
     year="2026",
     sections=sections_data,
-    assets=assets_data,  # ✅ تمرير بيانات الأصول لإنشاء ورقة الإهلاك
-    include_depreciation_schedule=True, # ✅ تأكيد إضافة الورقة
+    assets=assets_data,
+    include_depreciation_schedule=True,
     output_dir="{WORKSPACE_DIR}"
 )
 print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 5: جدول الإهلاك الشهري المضغوط (فقط عند طلب الإهلاك بدون تقرير الأصول الكامل)
+📝 مثال 5: جدول الإهلاك الشهري المضغوط
 ==========================================
 ```python
 from core.formatter import generate_depreciation_schedule
@@ -311,12 +376,10 @@ print("SUCCESS: " + output_path)
 📝 مثال 6: ميزان المراجعة الشامل
 ==========================================
 ⚠️ مهم جداً: accounts يجب أن تكون LIST من DICTS، وليست string!
-⚠️ استخدم الأقواس المربعة [] للقائمة، والأقواس المعقوفة {{}} لكل حساب
 ==========================================
 ```python
 from core.formatter import generate_trial_balance
 
-# ✅ accounts = LIST (أقواس مربعة) تحتوي على DICTS (أقواس معقوفة)
 accounts_data = [
     {{
         'account_number': '1101',
@@ -325,14 +388,6 @@ accounts_data = [
         'opening_credit': 0,
         'debit_movement': 120000,
         'credit_movement': 95000
-    }},
-    {{
-        'account_number': '1102',
-        'account_name': 'البنك الأهلي',
-        'opening_debit': 350000,
-        'opening_credit': 0,
-        'debit_movement': 500000,
-        'credit_movement': 420000
     }},
     {{
         'account_number': '2101',
@@ -354,9 +409,9 @@ print("SUCCESS: " + output_path)
 ```
 
 ==========================================
-📝 مثال 7: كشف الرواتب المتكامل (مع قسائم التوقيع)
+📝 مثال 7: كشف الرواتب المتكامل (Excel - NOT Word)
 ==========================================
-⚠️ مهم جداً: employees يجب أن تكون LIST من DICTS!
+⚠️ مهم جداً: هذه الدالة تنشئ ملف Excel متعدد الأوراق، وليس خطاب Word!
 ==========================================
 ```python
 from core.formatter import generate_payroll_register
@@ -405,19 +460,21 @@ print("SUCCESS: " + output_path)
 ==========================================
 ⚠️ تحذيرات حاسمة ومهمة جداً:
 ==========================================
-- ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات (النظام ينظفها تلقائياً).
+- ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات.
 - ممنوع استخدام from docx import Document مباشرة.
 - ممنوع اختراع دوال غير موجودة.
-- لتقارير الأصول، استخدم دالة create_fixed_asset_report واحدة لدمج كل الأوراق في ملف واحد.
+- لكشف الرواتب، استخدم generate_payroll_register (Excel) وليس generate_styled_letter (Word).
 
 ⚠️ قاعدة صارمة لـ print:
-❌ ممنوع تماماً: print(f"SUCCESS: {{output_path}}") أو استخدام f-string مع المتغيرات.
+❌ ممنوع تماماً: print(f"SUCCESS: {{output_path}}")
 ✅ مسموح فقط وبشكل حصري: print("SUCCESS: " + output_path)
 
 ==========================================
 الآن نفذ الطلب:
 ==========================================
 {user_request}
+
+{routing_instruction}
 
 اختر الدالة المناسبة والأنماط الأنسب. ابدأ بـ ```python وانهِ بـ ```"""
 
@@ -437,8 +494,8 @@ print("SUCCESS: " + output_path)
 تعليمات التصحيح:
 ==========================================
 1. استخدم الدالة المناسبة من core.formatter
-2. تأكد من تمرير جميع المعاملات المطلوبة (بما في ذلك assets لتقارير الأصول المتكاملة)
-3. اختر الأنماط المناسبة (header_style, content_style, table_style...)
+2. تأكد من تمرير جميع المعاملات المطلوبة
+3. اختر الأنماط المناسبة
 4. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
 5. ممنوع إضافة أرقام في بداية الفقرات
 
