@@ -3494,21 +3494,40 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
         deductions = float(emp.get('insurance_deductions', 0) or 0) + float(emp.get('other_deductions', 0) or 0)
         net = float(emp.get('net_pay', 0) or 0)
         
-        main_ws.cell(row=idx, column=1, value=idx-3).font = data_font; main_ws.cell(row=idx, column=1).alignment = center; main_ws.cell(row=idx, column=1).border = thin_border
-        main_ws.cell(row=idx, column=2, value=emp.get('employee_id', '')).font = data_font; main_ws.cell(row=idx, column=2).alignment = center; main_ws.cell(row=idx, column=2).border = thin_border
-        main_ws.cell(row=idx, column=3, value=emp.get('employee_name', '')).font = Font(name="Arial", size=10, bold=True); main_ws.cell(row=idx, column=3).alignment = left; main_ws.cell(row=idx, column=3).border = thin_border
-        main_ws.cell(row=idx, column=4, value=emp.get('department', '')).font = data_font; main_ws.cell(row=idx, column=4).alignment = center; main_ws.cell(row=idx, column=4).border = thin_border
+        main_ws.cell(row=idx, column=1, value=idx-3).font = data_font
+        main_ws.cell(row=idx, column=1).alignment = center
+        main_ws.cell(row=idx, column=1).border = thin_border
+        
+        main_ws.cell(row=idx, column=2, value=emp.get('employee_id', '')).font = data_font
+        main_ws.cell(row=idx, column=2).alignment = center
+        main_ws.cell(row=idx, column=2).border = thin_border
+        
+        main_ws.cell(row=idx, column=3, value=emp.get('employee_name', '')).font = Font(name="Arial", size=10, bold=True)
+        main_ws.cell(row=idx, column=3).alignment = left
+        main_ws.cell(row=idx, column=3).border = thin_border
+        
+        main_ws.cell(row=idx, column=4, value=emp.get('department', '')).font = data_font
+        main_ws.cell(row=idx, column=4).alignment = center
+        main_ws.cell(row=idx, column=4).border = thin_border
         
         values = [basic, emp.get('housing_allowance', 0), emp.get('transport_allowance', 0), emp.get('other_allowances', 0), gross, emp.get('insurance_deductions', 0), emp.get('other_deductions', 0), net]
         for i, val in enumerate(values, 5):
             cell = main_ws.cell(row=idx, column=i, value=val)
-            cell.font = data_font; cell.alignment = right; cell.border = thin_border; cell.number_format = '#,##0.00'
+            cell.font = data_font
+            cell.alignment = right
+            cell.border = thin_border
+            cell.number_format = '#,##0.00'
         
-        total_basic += basic; total_gross += gross; total_deductions += deductions; total_net += net
+        total_basic += basic
+        total_gross += gross
+        total_deductions += deductions
+        total_net += net
         
         dept = emp.get('department', '').lower()
-        if 'إدار' in dept or 'admin' in dept: admin_employees.append(emp)
-        else: operational_employees.append(emp)
+        if 'إدار' in dept or 'admin' in dept:
+            admin_employees.append(emp)
+        else:
+            operational_employees.append(emp)
         main_ws.row_dimensions[idx].height = 25
     
     last_row = len(employees) + 3
@@ -3516,85 +3535,138 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
     
     main_ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=3)
     total_label = main_ws.cell(row=total_row, column=1, value="الإجمالي العام")
-    total_label.font = total_font; total_label.alignment = Alignment(horizontal="right", vertical="center"); total_label.fill = total_fill; total_label.border = thick_border
+    total_label.font = total_font
+    total_label.alignment = Alignment(horizontal="right", vertical="center")
+    total_label.fill = total_fill
+    total_label.border = thick_border
     
     for col in [2, 3, 4]:
-        cell = main_ws.cell(row=total_row, column=col); cell.fill = total_fill; cell.border = thick_border
+        cell = main_ws.cell(row=total_row, column=col)
+        cell.fill = total_fill
+        cell.border = thick_border
     
     totals = [total_basic, total_gross, total_deductions, total_net]
     positions = [5, 9, 11, 12]
     for val, pos in zip(totals, positions):
         cell = main_ws.cell(row=total_row, column=pos, value=val)
-        cell.font = total_font; cell.fill = total_fill; cell.alignment = right; cell.number_format = '#,##0.00'; cell.border = thick_border
+        cell.font = total_font
+        cell.fill = total_fill
+        cell.alignment = right
+        cell.number_format = '#,##0.00'
+        cell.border = thick_border
     
     for col in range(1, 13):
         if col not in [1, 5, 9, 11, 12]:
-            cell = main_ws.cell(row=total_row, column=col); cell.fill = total_fill; cell.border = thick_border
+            cell = main_ws.cell(row=total_row, column=col)
+            cell.fill = total_fill
+            cell.border = thick_border
     main_ws.row_dimensions[total_row].height = 30
     
     main_ws.freeze_panes = 'A4'
     main_ws.auto_filter.ref = f"A3:L{last_row}"
     
     col_widths = {'A': 6, 'B': 14, 'C': 28, 'D': 16, 'E': 16, 'F': 13, 'G': 15, 'H': 13, 'I': 16, 'J': 13, 'K': 15, 'L': 16}
-    for col_letter, width in col_widths.items(): main_ws.column_dimensions[col_letter].width = width
+    for col_letter, width in col_widths.items():
+        main_ws.column_dimensions[col_letter].width = width
     
     if admin_employees:
         admin_ws = wb.create_sheet(title="الرواتب_الإدارية")
         admin_ws.sheet_view.rightToLeft = True
-        admin_ws.merge_cells('A1:L1'); admin_ws['A1'].value = "الرواتب الإدارية والعمومية"; admin_ws['A1'].font = title_font; admin_ws['A1'].alignment = center; admin_ws.row_dimensions[1].height = 40
-        admin_ws.merge_cells('A2:L2'); admin_ws['A2'].value = f"{company_name} - {period}"; admin_ws['A2'].font = subtitle_font; admin_ws['A2'].alignment = center; admin_ws.row_dimensions[2].height = 25
+        admin_ws.merge_cells('A1:L1')
+        admin_ws['A1'].value = "الرواتب الإدارية والعمومية"
+        admin_ws['A1'].font = title_font
+        admin_ws['A1'].alignment = center
+        admin_ws.row_dimensions[1].height = 40
+        admin_ws.merge_cells('A2:L2')
+        admin_ws['A2'].value = f"{company_name} - {period}"
+        admin_ws['A2'].font = subtitle_font
+        admin_ws['A2'].alignment = center
+        admin_ws.row_dimensions[2].height = 25
         for col, header in enumerate(headers, 1):
-            cell = admin_ws.cell(row=3, column=col, value=header); cell.fill = header_fill; cell.font = header_font; cell.alignment = center; cell.border = thick_border
+            cell = admin_ws.cell(row=3, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center
+            cell.border = thick_border
         admin_ws.row_dimensions[3].height = 30
         for idx, emp in enumerate(admin_employees, 4):
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
                 cell = admin_ws.cell(row=idx, column=col, value=val)
-                cell.font = data_font; cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right); cell.border = thin_border
-                if col >= 5: cell.number_format = '#,##0.00'
+                cell.font = data_font
+                cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right)
+                cell.border = thin_border
+                if col >= 5:
+                    cell.number_format = '#,##0.00'
             admin_ws.row_dimensions[idx].height = 25
-        admin_ws.freeze_panes = 'A4'; admin_ws.auto_filter.ref = f"A3:L{len(admin_employees)+3}"
-        for col_letter, width in col_widths.items(): admin_ws.column_dimensions[col_letter].width = width
+        admin_ws.freeze_panes = 'A4'
+        admin_ws.auto_filter.ref = f"A3:L{len(admin_employees)+3}"
+        for col_letter, width in col_widths.items():
+            admin_ws.column_dimensions[col_letter].width = width
 
     if operational_employees:
         op_ws = wb.create_sheet(title="الرواتب_التشغيلية")
         op_ws.sheet_view.rightToLeft = True
-        op_ws.merge_cells('A1:L1'); op_ws['A1'].value = "الرواتب التشغيلية"; op_ws['A1'].font = title_font; op_ws['A1'].alignment = center; op_ws.row_dimensions[1].height = 40
-        op_ws.merge_cells('A2:L2'); op_ws['A2'].value = f"{company_name} - {period}"; op_ws['A2'].font = subtitle_font; op_ws['A2'].alignment = center; op_ws.row_dimensions[2].height = 25
+        op_ws.merge_cells('A1:L1')
+        op_ws['A1'].value = "الرواتب التشغيلية"
+        op_ws['A1'].font = title_font
+        op_ws['A1'].alignment = center
+        op_ws.row_dimensions[1].height = 40
+        op_ws.merge_cells('A2:L2')
+        op_ws['A2'].value = f"{company_name} - {period}"
+        op_ws['A2'].font = subtitle_font
+        op_ws['A2'].alignment = center
+        op_ws.row_dimensions[2].height = 25
         for col, header in enumerate(headers, 1):
-            cell = op_ws.cell(row=3, column=col, value=header); cell.fill = header_fill; cell.font = header_font; cell.alignment = center; cell.border = thick_border
+            cell = op_ws.cell(row=3, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = center
+            cell.border = thick_border
         op_ws.row_dimensions[3].height = 30
         for idx, emp in enumerate(operational_employees, 4):
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
                 cell = op_ws.cell(row=idx, column=col, value=val)
-              cell.font = data_font; cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right); cell.border = thin_border
-                if col >= 5: cell.number_format = '#,##0.00'
+                cell.font = data_font
+                cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right)
+                cell.border = thin_border
+                if col >= 5:
+                    cell.number_format = '#,##0.00'
             op_ws.row_dimensions[idx].height = 25
-        op_ws.freeze_panes = 'A4'; op_ws.auto_filter.ref = f"A3:L{len(operational_employees)+3}"
-        for col_letter, width in col_widths.items(): op_ws.column_dimensions[col_letter].width = width
+        op_ws.freeze_panes = 'A4'
+        op_ws.auto_filter.ref = f"A3:L{len(operational_employees)+3}"
+        for col_letter, width in col_widths.items():
+            op_ws.column_dimensions[col_letter].width = width
 
     if include_signature_slips:
         slip_ws = wb.create_sheet(title="قسائم_التوقيع")
         slip_ws.sheet_view.rightToLeft = True
         slip_ws.page_setup.orientation = slip_ws.ORIENTATION_PORTRAIT
         slip_ws.page_setup.paper_size = slip_ws.PAPERSIZE_A4
-        slip_ws.page_setup.fitToWidth = 1; slip_ws.page_setup.fitToHeight = 1
-        slip_ws.merge_cells('A1:N1'); slip_ws['A1'].value = f"قسائم استلام الرواتب - {period}"; slip_ws['A1'].font = title_font; slip_ws['A1'].alignment = center; slip_ws.row_dimensions[1].height = 35
+        slip_ws.page_setup.fitToWidth = 1
+        slip_ws.page_setup.fitToHeight = 1
+        slip_ws.merge_cells('A1:N1')
+        slip_ws['A1'].value = f"قسائم استلام الرواتب - {period}"
+        slip_ws['A1'].font = title_font
+        slip_ws['A1'].alignment = center
+        slip_ws.row_dimensions[1].height = 35
         slip_count = 0
         for row_idx in range(1, 3):
             for col_idx in range(1, 3):
                 if slip_count < len(employees):
                     _create_payroll_signature_slip(slip_ws, row_idx, col_idx, employees[slip_count], period)
                     slip_count += 1
-        for col in range(1, 15): slip_ws.column_dimensions[get_column_letter(col)].width = 11
+        for col in range(1, 15):
+            slip_ws.column_dimensions[get_column_letter(col)].width = 11
 
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
     if filename is None:
         safe_company = company_name.replace(' ', '_')[:20]
         filename = f"كشف_الرواتب_{safe_company}_{period}"
-    if not filename.endswith('.xlsx'): filename += '.xlsx'
+    if not filename.endswith('.xlsx'):
+        filename += '.xlsx'
     
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
