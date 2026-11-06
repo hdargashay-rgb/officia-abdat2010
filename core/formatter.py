@@ -3550,7 +3550,7 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
                 cell = admin_ws.cell(row=idx, column=col, value=val)
-                cell.font = main_ws.cell(row=idx, column=col).font; cell.alignment = main_ws.cell(row=idx, column=col).alignment; cell.border = thin_border
+                cell.font = data_font; cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right); cell.border = thin_border
                 if col >= 5: cell.number_format = '#,##0.00'
             admin_ws.row_dimensions[idx].height = 25
         admin_ws.freeze_panes = 'A4'; admin_ws.auto_filter.ref = f"A3:L{len(admin_employees)+3}"
@@ -3568,7 +3568,7 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
                 cell = op_ws.cell(row=idx, column=col, value=val)
-                cell.font = main_ws.cell(row=idx, column=col).font; cell.alignment = main_ws.cell(row=idx, column=col).alignment; cell.border = thin_border
+              cell.font = data_font; cell.alignment = center if col in [1, 2, 4] else (left if col == 3 else right); cell.border = thin_border
                 if col >= 5: cell.number_format = '#,##0.00'
             op_ws.row_dimensions[idx].height = 25
         op_ws.freeze_panes = 'A4'; op_ws.auto_filter.ref = f"A3:L{len(operational_employees)+3}"
