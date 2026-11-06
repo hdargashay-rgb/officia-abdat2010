@@ -3301,10 +3301,12 @@ def generate_trial_balance(
 def _create_payroll_signature_slip(ws, row, col, employee, period):
     """
     دالة مساعدة: إنشاء قسيمة راتب واحدة للتوقيع
+    row: 1 أو 2 (الصف في شبكة 2x2)
+    col: 1 أو 2 (العمود في شبكة 2x2)
     """
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     
-    # أنماط القسيمة
+    # الأنماط
     slip_header = Font(name="Arial", size=9, bold=True, color="1F4E79")
     slip_data = Font(name="Arial", size=8)
     slip_border = Border(
@@ -3316,12 +3318,14 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
     center = Alignment(horizontal="center", vertical="center")
     right = Alignment(horizontal="right", vertical="center")
     
-    # حسابات القسيمة (4 في صفحة)
-    row_offset = (row - 1) % 2 * 25  # صفين في الصفحة
-    col_offset = (col - 1) % 2 * 25  # عمودين في الصفحة
+    # ✅ الحساب الصحيح: كل قسيمة تأخذ 12 عمود و 22 صف
+    # القسيمة (1,1) تبدأ من الصف 2، العمود 1
+    # القسيمة (1,2) تبدأ من الصف 2، العمود 13
+    # القسيمة (2,1) تبدأ من الصف 24، العمود 1
+    # القسيمة (2,2) تبدأ من الصف 24، العمود 13
     
-    start_row = 2 + row_offset
-    start_col = col_offset
+    start_row = 2 + (row - 1) * 22  # ✅ يبدأ من 2 على الأقل
+    start_col = 1 + (col - 1) * 12  # ✅ يبدأ من 1 على الأقل
     
     # رأس القسيمة
     ws.merge_cells(start_row=start_row, start_column=start_col, 
