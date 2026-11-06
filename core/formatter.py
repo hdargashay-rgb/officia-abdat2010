@@ -3294,85 +3294,175 @@ def generate_trial_balance(
     return output_path
 
 # ==========================================
-# 💰 كشف الرواتب المتكامل (Payroll System)
-# عدة أنماط: مسير رئيسي، إداري، تشغيلي، قسائم توقيع
+# 💰 كشف الرواتب - دالة قسائم التوقيع
 # ==========================================
 
 def _create_payroll_signature_slip(ws, row, col, employee, period):
     """
-    دالة مساعدة: إنشاء قسيمة راتب واحدة للتوقيع
+    إنشاء قسيمة راتب احترافية في مربع واضح
     row: 1 أو 2 (الصف في شبكة 2x2)
     col: 1 أو 2 (العمود في شبكة 2x2)
     """
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     
-    # الأنماط
-    slip_header = Font(name="Arial", size=9, bold=True, color="1F4E79")
-    slip_data = Font(name="Arial", size=8)
-    slip_border = Border(
+    # ===== الأنماط الاحترافية =====
+    title_fill = PatternFill(start_color="1F4E79", end_color="2E75B6", fill_type="solid")
+    title_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    
+    header_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
+    header_font = Font(name="Arial", size=9, bold=True, color="1F4E79")
+    
+    label_font = Font(name="Arial", size=8, bold=True, color="404040")
+    data_font = Font(name="Arial", size=8, color="000000")
+    
+    total_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    total_font = Font(name="Arial", size=9, bold=True, color="C00000")
+    
+    # الحدود
+    outer_border = Border(
+        left=Side(style="thick", color="1F4E79"),
+        right=Side(style="thick", color="1F4E79"),
+        top=Side(style="thick", color="1F4E79"),
+        bottom=Side(style="thick", color="1F4E79")
+    )
+    
+    inner_border = Border(
         left=Side(style="thin", color="B4C7E7"),
         right=Side(style="thin", color="B4C7E7"),
         top=Side(style="thin", color="B4C7E7"),
         bottom=Side(style="thin", color="B4C7E7")
     )
-    center = Alignment(horizontal="center", vertical="center")
+    
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right = Alignment(horizontal="right", vertical="center")
+    left = Alignment(horizontal="left", vertical="center")
     
-    # ✅ الحساب الصحيح: كل قسيمة تأخذ 12 عمود و 22 صف
-    # القسيمة (1,1) تبدأ من الصف 2، العمود 1
-    # القسيمة (1,2) تبدأ من الصف 2، العمود 13
-    # القسيمة (2,1) تبدأ من الصف 24، العمود 1
-    # القسيمة (2,2) تبدأ من الصف 24، العمود 13
+    # ===== حساب الموقع (2x2 في صفحة) =====
+    start_row = 2 + (row - 1) * 24
+    start_col = 1 + (col - 1) * 14
     
-    start_row = 2 + (row - 1) * 22  # ✅ يبدأ من 2 على الأقل
-    start_col = 1 + (col - 1) * 12  # ✅ يبدأ من 1 على الأقل
+    # ===== رسم المربع الخارجي =====
+    for r in range(start_row, start_row + 22):
+        for c in range(start_col, start_col + 13):
+            ws.cell(row=r, column=c).border = inner_border
     
-    # رأس القسيمة
+    # ===== العنوان =====
     ws.merge_cells(start_row=start_row, start_column=start_col, 
-                   end_row=start_row, end_column=start_col + 10)
-    title = ws.cell(row=start_row, column=start_col, 
-                   value=f"قسيمة راتب - {period}")
-    title.font = slip_header
-    title.alignment = center
+                   end_row=start_row, end_column=start_col + 12)
+    title_cell = ws.cell(row=start_row, column=start_col, value=f"قسيمة راتب - {period}")
+    title_cell.font = title_font
+    title_cell.fill = title_fill
+    title_cell.alignment = center
+    title_cell.border = outer_border
+    ws.row_dimensions[start_row].height = 25
     
-    # بيانات الموظف
-    ws.cell(row=start_row+2, column=start_col, value="اسم الموظف:").font = slip_data
-    ws.cell(row=start_row+2, column=start_col+1, value=employee.get('employee_name', '')).font = slip_data
-    ws.cell(row=start_row+2, column=start_col+5, value="رقم الموظف:").font = slip_data
-    ws.cell(row=start_row+2, column=start_col+6, value=employee.get('employee_id', '')).font = slip_data
+    # ===== بيانات الموظف =====
+    emp_data = [
+        ("اسم الموظف:", employee.get('employee_name', ''), "رقم الموظف:", employee.get('employee_id', '')),
+        ("القسم:", employee.get('department', ''), "تاريخ الصرف:", employee.get('payment_date', ''))
+    ]
     
-    ws.cell(row=start_row+3, column=start_col, value="القسم:").font = slip_data
-    ws.cell(row=start_row+3, column=start_col+1, value=employee.get('department', '')).font = slip_data
-    ws.cell(row=start_row+3, column=start_col+5, value="تاريخ الصرف:").font = slip_data
-    ws.cell(row=start_row+3, column=start_col+6, value=employee.get('payment_date', '')).font = slip_data
+    for i, (label1, val1, label2, val2) in enumerate(emp_data):
+        r = start_row + 2 + i
+        ws.row_dimensions[r].height = 18
+        
+        ws.cell(row=r, column=start_col, value=label1).font = label_font
+        ws.cell(row=r, column=start_col).alignment = right
+        ws.cell(row=r, column=start_col).border = inner_border
+        
+        ws.merge_cells(start_row=r, start_column=start_col+1, end_row=r, end_column=start_col+4)
+        ws.cell(row=r, column start_col+1, value=val1).font = data_font
+        ws.cell(row=r, column=start_col+1).alignment = left
+        ws.cell(row=r, column=start_col+1).border = inner_border
+        
+        ws.cell(row=r, column=start_col+7, value=label2).font = label_font
+        ws.cell(row=r, column=start_col+7).alignment = right
+        ws.cell(row=r, column=start_col+7).border = inner_border
+        
+        ws.merge_cells(start_row=r, start_column=start_col+8, end_row=r, end_column=start_col+12)
+        ws.cell(row=r, column=start_col+8, value=val2).font = data_font
+        ws.cell(row=r, column=start_col+8).alignment = left
+        ws.cell(row=r, column=start_col+8).border = inner_border
     
-    # جدول الرواتب
-    ws.cell(row=start_row+5, column=start_col, value="البيان").font = slip_header
-    ws.cell(row=start_row+5, column=start_col+5, value="المبلغ").font = slip_header
+    # ===== جدول البنود =====
+    header_r = start_row + 5
+    ws.row_dimensions[header_r].height = 20
+    
+    ws.merge_cells(start_row=header_r, start_column=start_col, end_row=header_r, end_column=start_col+6)
+    ws.cell(row=header_r, column=start_col, value="البيان").font = header_font
+    ws.cell(row=header_r, column=start_col).fill = header_fill
+    ws.cell(row=header_r, column=start_col).alignment = center
+    ws.cell(row=header_r, column=start_col).border = outer_border
+    
+    ws.merge_cells(start_row=header_r, start_column=start_col+7, end_row=header_r, end_column=start_col+12)
+    ws.cell(row=header_r, column=start_col+7, value="المبلغ (ر.س)").font = header_font
+    ws.cell(row=header_r, column=start_col+7).fill = header_fill
+    ws.cell(row=header_r, column=start_col+7).alignment = center
+    ws.cell(row=header_r, column=start_col+7).border = outer_border
     
     items = [
         ('الراتب الأساسي', employee.get('basic_salary', 0)),
         ('بدل سكن', employee.get('housing_allowance', 0)),
         ('بدل مواصلات', employee.get('transport_allowance', 0)),
-        ('بدل أخرى', employee.get('other_allowances', 0)),
+        ('بدلات أخرى', employee.get('other_allowances', 0)),
         ('إجمالي الدخل', employee.get('gross_pay', 0)),
         ('خصومات تأمينات', employee.get('insurance_deductions', 0)),
         ('خصومات أخرى', employee.get('other_deductions', 0)),
         ('صافي الراتب', employee.get('net_pay', 0))
     ]
     
-    for i, (label, amount) in enumerate(items, start_row+6):
-        ws.cell(row=i, column=start_col, value=label).font = slip_data
-        ws.cell(row=i, column=start_col+5, value=amount).font = slip_data
-        ws.cell(row=i, column=start_col+5).number_format = '#,##0.00'
+    for i, (label, amount) in enumerate(items):
+        r = header_r + 1 + i
+        ws.row_dimensions[r].height = 18
+        
+        is_total = label in ['إجمالي الدخل', 'صافي الراتب']
+        is_deduction = 'خصم' in label
+        
+        ws.merge_cells(start_row=r, start_column=start_col, end_row=r, end_column=start_col+6)
+        label_cell = ws.cell(row=r, column=start_col, value=label)
+        label_cell.font = total_font if is_total else data_font
+        label_cell.alignment = right
+        label_cell.border = inner_border
+        
+        if is_total:
+            label_cell.fill = total_fill
+            label_cell.font = Font(name="Arial", size=9, bold=True, color="C00000")
+        elif is_deduction:
+            label_cell.font = Font(name="Arial", size=8, color="C00000")
+        
+        ws.merge_cells(start_row=r, start_column=start_col+7, end_row=r, end_column=start_col+12)
+        amount_cell = ws.cell(row=r, column=start_col+7, value=amount)
+        amount_cell.font = total_font if is_total else data_font
+        amount_cell.alignment = right
+        amount_cell.number_format = '#,##0.00'
+        amount_cell.border = inner_border
+        
+        if is_total:
+            amount_cell.fill = total_fill
+        elif is_deduction:
+            amount_cell.font = Font(name="Arial", size=8, color="C00000")
     
-    # خانة التوقيع
-    ws.cell(row=start_row+16, column=start_col, value="توقيع الموظف:").font = slip_header
-    ws.merge_cells(start_row=start_row+17, start_column=start_col, 
-                   end_row=start_row+17, end_column=start_col+4)
-    sign_cell = ws.cell(row=start_row+17, column=start_col)
-    sign_cell.border = slip_border
+    # ===== خانة التوقيع =====
+    sign_row = start_row + 18
+    ws.row_dimensions[sign_row].height = 30
+    
+    ws.merge_cells(start_row=sign_row, start_column=start_col, end_row=sign_row, end_column=start_col+12)
+    sign_cell = ws.cell(row=sign_row, column=start_col, value="توقيع الموظف:")
+    sign_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
+    sign_cell.alignment = Alignment(horizontal="right", vertical="center")
+    sign_cell.border = outer_border
+    
+    # خط التوقيع
+    sign_row2 = sign_row + 1
+    ws.merge_cells(start_row=sign_row2, start_column=start_col+3, end_row=sign_row2, end_column=start_col+9)
+    ws.cell(row=sign_row2, column=start_col+3).border = Border(
+        bottom=Side(style="medium", color="000000")
+    )
+    ws.row_dimensions[sign_row2].height = 25
 
+# ==========================================
+# 💰 كشف الرواتب المتكامل - الدالة الرئيسية
+# ==========================================
 
 def generate_payroll_register(
     company_name: str,
@@ -3381,58 +3471,49 @@ def generate_payroll_register(
     output_dir: str = None,
     filename: str = None,
     include_signature_slips: bool = True,
-    **kwargs
+    **kwargs  # ✅ بروتوكول 1
 ) -> str:
     """
-    إنشاء كشف رواتب متكامل بعدة أنماط
-    
-    employees: قائمة الموظفين، كل موظف:
-    {
-        'employee_id': 'EMP001',
-        'employee_name': 'أحمد محمد',
-        'department': 'إداري',  # أو 'تشغيلي'
-        'basic_salary': 5000,
-        'housing_allowance': 1000,
-        'transport_allowance': 500,
-        'other_allowances': 0,
-        'gross_pay': 6500,
-        'insurance_deductions': 325,
-        'other_deductions': 0,
-        'net_pay': 6175,
-        'payment_date': '2026-01-31'
-    }
-    
-    include_signature_slips: إنشاء قسائم التوقيع (افتراضي: True)
+    إنشاء كشف رواتب احترافي متكامل
     """
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
+    import os
     
-    # ==========================================
-    # معالجة ذكية للأنواع
-    # ==========================================
+    # ✅ بروتوكول 3: معالجة ذكية للأنواع
     if isinstance(employees, str):
         print("⚠️ تم تحويل employees من string إلى list")
         employees = []
     elif isinstance(employees, dict):
         employees = [employees]
     
+    # ✅ بروتوكول 4: التحقق من البيانات الفارغة
     if not employees:
-        raise ValueError(" قائمة الموظفين فارغة.")
+        raise ValueError("❌ قائمة الموظفين فارغة.")
     
     wb = openpyxl.Workbook()
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
     
-    # الأنماط العامة
-    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    # ===== الأنماط الاحترافية =====
+    header_fill = PatternFill(start_color="1F4E79", end_color="2E75B6", fill_type="solid")
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
-    total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
-    total_font = Font(name="Arial", size=11, bold=True, color="1F4E79")
-    data_font = Font(name="Arial", size=10)
-    center_align = Alignment(horizontal="center", vertical="center")
-    right_align = Alignment(horizontal="right", vertical="center")
+    
+    total_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    total_font = Font(name="Arial", size=11, bold=True, color="C00000")
+    
+    data_font = Font(name="Arial", size=10, color="000000")
+    title_font = Font(name="Arial", size=18, bold=True, color="1F4E79")
+    subtitle_font = Font(name="Arial", size=12, italic=True, color="404040")
+    
+    thick_border = Border(
+        left=Side(style="thick", color="1F4E79"),
+        right=Side(style="thick", color="1F4E79"),
+        top=Side(style="thick", color="1F4E79"),
+        bottom=Side(style="thick", color="1F4E79")
+    )
     
     thin_border = Border(
         left=Side(style="thin", color="B4C7E7"),
@@ -3441,35 +3522,45 @@ def generate_payroll_register(
         bottom=Side(style="thin", color="B4C7E7")
     )
     
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right = Alignment(horizontal="right", vertical="center")
+    left = Alignment(horizontal="left", vertical="center")
+    
     # ==========================================
     # 1️⃣ مسير الرواتب الرئيسي
     # ==========================================
     main_ws = wb.create_sheet(title="مسير_الرواتب_الرئيسي")
     main_ws.sheet_view.rightToLeft = True
     
-    # العنوان
-    main_ws.merge_cells('A1:M1')
-    title = main_ws['A1']
-    title.value = f"مسير الرواتب - {company_name} ({period})"
-    title.font = Font(name="Arial", size=16, bold=True, color="1F4E79")
-    title.alignment = center_align
-    main_ws.row_dimensions[1].height = 35
+    # العنوان الرئيسي
+    main_ws.merge_cells('A1:L1')
+    title_cell = main_ws['A1']
+    title_cell.value = "مسير الرواتب الشهرية"
+    title_cell.font = title_font
+    title_cell.alignment = center
+    main_ws.row_dimensions[1].height = 45
     
-    # الرؤوس
-    headers = [
-        'م', 'رقم الموظف', 'اسم الموظف', 'القسم', 'الراتب الأساسي',
-        'بدل سكن', 'بدل مواصلات', 'بدل أخرى', 'إجمالي الدخل',
-        'تأمينات', 'خصومات أخرى', 'صافي الراتب'
-    ]
+    # العنوان الفرعي
+    main_ws.merge_cells('A2:L2')
+    subtitle_cell = main_ws['A2']
+    subtitle_cell.value = f"{company_name} - {period}"
+    subtitle_cell.font = subtitle_font
+    subtitle_cell.alignment = center
+    main_ws.row_dimensions[2].height = 30
+    
+    # رؤوس الأعمدة
+    headers = ['م', 'رقم الموظف', 'اسم الموظف', 'القسم', 'الراتب الأساسي',
+               'بدل سكن', 'بدل مواصلات', 'بدل أخرى', 'إجمالي الدخل',
+               'تأمينات', 'خصومات أخرى', 'صافي الراتب']
     
     for col, header in enumerate(headers, 1):
-        cell = main_ws.cell(row=2, column=col, value=header)
+        cell = main_ws.cell(row=3, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = center_align
-        cell.border = thin_border
+        cell.alignment = center
+        cell.border = thick_border
     
-    main_ws.row_dimensions[2].height = 28
+    main_ws.row_dimensions[3].height = 35
     
     # البيانات
     total_basic = 0
@@ -3480,16 +3571,28 @@ def generate_payroll_register(
     admin_employees = []
     operational_employees = []
     
-    for idx, emp in enumerate(employees, 3):
+    for idx, emp in enumerate(employees, 4):
+        # ✅ بروتوكول 5: قيم افتراضية آمنة
         basic = float(emp.get('basic_salary', 0) or 0)
         gross = float(emp.get('gross_pay', 0) or 0)
         deductions = float(emp.get('insurance_deductions', 0) or 0) + float(emp.get('other_deductions', 0) or 0)
         net = float(emp.get('net_pay', 0) or 0)
         
-        main_ws.cell(row=idx, column=1, value=idx-2).font = data_font
+        main_ws.cell(row=idx, column=1, value=idx-3).font = data_font
+        main_ws.cell(row=idx, column=1).alignment = center
+        main_ws.cell(row=idx, column=1).border = thin_border
+        
         main_ws.cell(row=idx, column=2, value=emp.get('employee_id', '')).font = data_font
-        main_ws.cell(row=idx, column=3, value=emp.get('employee_name', '')).font = data_font
+        main_ws.cell(row=idx, column=2).alignment = center
+        main_ws.cell(row=idx, column=2).border = thin_border
+        
+        main_ws.cell(row=idx, column=3, value=emp.get('employee_name', '')).font = Font(name="Arial", size=10, bold=True)
+        main_ws.cell(row=idx, column=3).alignment = left
+        main_ws.cell(row=idx, column=3).border = thin_border
+        
         main_ws.cell(row=idx, column=4, value=emp.get('department', '')).font = data_font
+        main_ws.cell(row=idx, column=4).alignment = center
+        main_ws.cell(row=idx, column=4).border = thin_border
         
         values = [basic, emp.get('housing_allowance', 0), emp.get('transport_allowance', 0), 
                  emp.get('other_allowances', 0), gross, 
@@ -3498,7 +3601,7 @@ def generate_payroll_register(
         for i, val in enumerate(values, 5):
             cell = main_ws.cell(row=idx, column=i, value=val)
             cell.font = data_font
-            cell.alignment = right_align
+            cell.alignment = right
             cell.border = thin_border
             cell.number_format = '#,##0.00'
         
@@ -3507,24 +3610,56 @@ def generate_payroll_register(
         total_deductions += deductions
         total_net += net
         
-        # تصنيف الموظفين
         dept = emp.get('department', '').lower()
         if 'إدار' in dept or 'admin' in dept:
             admin_employees.append(emp)
         else:
             operational_employees.append(emp)
+        
+        main_ws.row_dimensions[idx].height = 25
     
-    # الإجمالي
-    last_row = len(employees) + 2
-    main_ws.cell(row=last_row+1, column=3, value="الإجمالي").font = total_font
+    # صف الإجمالي
+    last_row = len(employees) + 3
+    total_row = last_row + 1
+    
+    main_ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=3)
+    total_label = main_ws.cell(row=total_row, column=1, value="الإجمالي العام")
+    total_label.font = total_font
+    total_label.alignment = Alignment(horizontal="right", vertical="center")
+    total_label.fill = total_fill
+    total_label.border = thick_border
+    
+    for col in [2, 3, 4]:
+        cell = main_ws.cell(row=total_row, column=col)
+        cell.fill = total_fill
+        cell.border = thick_border
+    
     totals = [total_basic, total_gross, total_deductions, total_net]
-    for i, val in enumerate(totals, 5):
-        cell = main_ws.cell(row=last_row+1, column=i, value=val)
+    positions = [5, 9, 11, 12]
+    for val, pos in zip(totals, positions):
+        cell = main_ws.cell(row=total_row, column=pos, value=val)
         cell.font = total_font
         cell.fill = total_fill
+        cell.alignment = right
         cell.number_format = '#,##0.00'
+        cell.border = thick_border
     
-    main_ws.auto_filter.ref = f"A2:M{last_row}"
+    for col in range(1, 13):
+        if col not in [1, 5, 9, 11, 12]:
+            cell = main_ws.cell(row=total_row, column=col)
+            cell.fill = total_fill
+            cell.border = thick_border
+    
+    main_ws.row_dimensions[total_row].height = 30
+    
+    # ✅ بروتوكول 8: تجميد + فلتر
+    main_ws.freeze_panes = 'A4'
+    main_ws.auto_filter.ref = f"A3:L{last_row}"
+    
+    # ✅ بروتوكول 9: عرض الأعمدة
+    col_widths = {'A': 6, 'B': 14, 'C': 28, 'D': 16, 'E': 16, 'F': 13, 'G': 15, 'H': 13, 'I': 16, 'J': 13, 'K': 15, 'L': 16}
+    for col_letter, width in col_widths.items():
+        main_ws.column_dimensions[col_letter].width = width
     
     # ==========================================
     # 2️⃣ الرواتب الإدارية
@@ -3533,29 +3668,43 @@ def generate_payroll_register(
         admin_ws = wb.create_sheet(title="الرواتب_الإدارية")
         admin_ws.sheet_view.rightToLeft = True
         
-        admin_ws.merge_cells('A1:M1')
-        admin_title = admin_ws['A1']
-        admin_title.value = f"الرواتب الإدارية والعمومية - {company_name} ({period})"
-        admin_title.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
-        admin_title.alignment = center_align
+        admin_ws.merge_cells('A1:L1')
+        admin_ws['A1'].value = "الرواتب الإدارية والعمومية"
+        admin_ws['A1'].font = title_font
+        admin_ws['A1'].alignment = center
+        admin_ws.row_dimensions[1].height = 40
         
-        # نسخ الرؤوس
+        admin_ws.merge_cells('A2:L2')
+        admin_ws['A2'].value = f"{company_name} - {period}"
+        admin_ws['A2'].font = subtitle_font
+        admin_ws['A2'].alignment = center
+        admin_ws.row_dimensions[2].height = 25
+        
         for col, header in enumerate(headers, 1):
-            cell = admin_ws.cell(row=2, column=col, value=header)
+            cell = admin_ws.cell(row=3, column=col, value=header)
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = center_align
-            cell.border = thin_border
+            cell.alignment = center
+            cell.border = thick_border
         
-        # بيانات الإداريين
-        admin_total_net = 0
-        for idx, emp in enumerate(admin_employees, 3):
+        admin_ws.row_dimensions[3].height = 30
+        
+        for idx, emp in enumerate(admin_employees, 4):
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
-                admin_ws.cell(row=idx, column=col, value=val).font = data_font
-            admin_total_net += float(emp.get('net_pay', 0))
+                cell = admin_ws.cell(row=idx, column=col, value=val)
+                cell.font = main_ws.cell(row=idx, column=col).font
+                cell.alignment = main_ws.cell(row=idx, column=col).alignment
+                cell.border = thin_border
+                if col >= 5:
+                    cell.number_format = '#,##0.00'
+            admin_ws.row_dimensions[idx].height = 25
         
-        admin_ws.auto_filter.ref = f"A2:M{len(admin_employees)+2}"
+        admin_ws.freeze_panes = 'A4'
+        admin_ws.auto_filter.ref = f"A3:L{len(admin_employees)+3}"
+        
+        for col_letter, width in col_widths.items():
+            admin_ws.column_dimensions[col_letter].width = width
     
     # ==========================================
     # 3️⃣ الرواتب التشغيلية
@@ -3564,59 +3713,75 @@ def generate_payroll_register(
         op_ws = wb.create_sheet(title="الرواتب_التشغيلية")
         op_ws.sheet_view.rightToLeft = True
         
-        op_ws.merge_cells('A1:M1')
-        op_title = op_ws['A1']
-        op_title.value = f"الرواتب التشغيلية - {company_name} ({period})"
-        op_title.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
-        op_title.alignment = center_align
+        op_ws.merge_cells('A1:L1')
+        op_ws['A1'].value = "الرواتب التشغيلية"
+        op_ws['A1'].font = title_font
+        op_ws['A1'].alignment = center
+        op_ws.row_dimensions[1].height = 40
         
-        # نسخ الرؤوس
+        op_ws.merge_cells('A2:L2')
+        op_ws['A2'].value = f"{company_name} - {period}"
+        op_ws['A2'].font = subtitle_font
+        op_ws['A2'].alignment = center
+        op_ws.row_dimensions[2].height = 25
+        
         for col, header in enumerate(headers, 1):
-            cell = op_ws.cell(row=2, column=col, value=header)
+            cell = op_ws.cell(row=3, column=col, value=header)
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = center_align
-            cell.border = thin_border
+            cell.alignment = center
+            cell.border = thick_border
         
-        # بيانات التشغيليين
-        for idx, emp in enumerate(operational_employees, 3):
+        op_ws.row_dimensions[3].height = 30
+        
+        for idx, emp in enumerate(operational_employees, 4):
             for col in range(1, 13):
                 val = main_ws.cell(row=idx, column=col).value
-                op_ws.cell(row=idx, column=col, value=val).font = data_font
+                cell = op_ws.cell(row=idx, column=col, value=val)
+                cell.font = main_ws.cell(row=idx, column=col).font
+                cell.alignment = main_ws.cell(row=idx, column=col).alignment
+                cell.border = thin_border
+                if col >= 5:
+                    cell.number_format = '#,##0.00'
+            op_ws.row_dimensions[idx].height = 25
         
-        op_ws.auto_filter.ref = f"A2:M{len(operational_employees)+2}"
+        op_ws.freeze_panes = 'A4'
+        op_ws.auto_filter.ref = f"A3:L{len(operational_employees)+3}"
+        
+        for col_letter, width in col_widths.items():
+            op_ws.column_dimensions[col_letter].width = width
     
     # ==========================================
-    # 4️⃣ قسائم التوقيع (4 في صفحة)
+    # 4️⃣ قسائم التوقيع
     # ==========================================
     if include_signature_slips:
         slip_ws = wb.create_sheet(title="قسائم_التوقيع")
         slip_ws.sheet_view.rightToLeft = True
         slip_ws.page_setup.orientation = slip_ws.ORIENTATION_PORTRAIT
         slip_ws.page_setup.paper_size = slip_ws.PAPERSIZE_A4
+        slip_ws.page_setup.fitToWidth = 1
+        slip_ws.page_setup.fitToHeight = 1
         
-        slip_ws.merge_cells('A1:Z1')
-        slip_title = slip_ws['A1']
-        slip_title.value = f"قسائم استلام الرواتب - {period}"
-        slip_title.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
-        slip_title.alignment = center_align
+        slip_ws.merge_cells('A1:N1')
+        slip_ws['A1'].value = f"قسائم استلام الرواتب - {period}"
+        slip_ws['A1'].font = title_font
+        slip_ws['A1'].alignment = center
+        slip_ws.row_dimensions[1].height = 35
         
-      # إنشاء 4 قسائم في كل صفحة
         slip_count = 0
-        for row_idx in range(2):  # 0, 1 (صفين)
-            for col_idx in range(2):  # 0, 1 (عمودين)
+        for row_idx in range(1, 3):
+            for col_idx in range(1, 3):
                 if slip_count < len(employees):
                     emp = employees[slip_count]
-                    # نمرر row_idx+1 و col_idx+1 لأن OpenPyXL يبدأ من 1
-                    _create_payroll_signature_slip(slip_ws, row_idx + 1, col_idx + 1, emp, period)
+                    _create_payroll_signature_slip(slip_ws, row_idx, col_idx, emp, period)
                     slip_count += 1
+        
+        for col in range(1, 15):
+            slip_ws.column_dimensions[get_column_letter(col)].width = 11
     
-    # التنسيقات النهائية
-    for col in range(1, 13):
-        main_ws.column_dimensions[get_column_letter(col)].width = 15
-    main_ws.column_dimensions['C'].width = 25
-    
+    # ==========================================
     # الحفظ
+    # ==========================================
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
     
@@ -3630,5 +3795,6 @@ def generate_payroll_register(
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
     
+    # ✅ بروتوكول 2: طباعة النجاح
     print("SUCCESS: " + output_path)
     return output_path
