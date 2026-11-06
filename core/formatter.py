@@ -3597,13 +3597,14 @@ def generate_payroll_register(
         slip_title.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
         slip_title.alignment = center_align
         
-        # إنشاء 4 قسائم في كل صفحة
+      # إنشاء 4 قسائم في كل صفحة
         slip_count = 0
-        for row in range(1, 3):  # صفين
-            for col in range(1, 3):  # عمودين
+        for row_idx in range(2):  # 0, 1 (صفين)
+            for col_idx in range(2):  # 0, 1 (عمودين)
                 if slip_count < len(employees):
                     emp = employees[slip_count]
-                    _create_payroll_signature_slip(slip_ws, row, col, emp, period)
+                    # نمرر row_idx+1 و col_idx+1 لأن OpenPyXL يبدأ من 1
+                    _create_payroll_signature_slip(slip_ws, row_idx + 1, col_idx + 1, emp, period)
                     slip_count += 1
     
     # التنسيقات النهائية
