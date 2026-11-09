@@ -8,3 +8,6 @@ numpy
 python-docx 
 Pillow 
 google-genai
+pdf2docx
+pdfplumber
+PyMuPDF
