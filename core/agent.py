@@ -103,23 +103,86 @@ class Agent:
         # ==========================================
         # السيناريو الأول: وجود ملف مرفوع
         # ==========================================
-        if uploaded_file_path:
+       if uploaded_file_path:
             return f"""أنت وكيل ذكي متخصص في تحليل المستندات وإنشاء ملفات مشابهة.
+
 📎 تم رفع ملف مرجعي: {uploaded_file_path}
 🎯 طلب المستخدم: {user_request}
+
 {routing_instruction}
-⚠️ قاعدة إلزامية: استخدم الدوال المخصصة للملفات المرفوعة من core.formatter.
+
+⚠️ قاعدة إلزامية: استخدم الدوال المخصصة للملفات المرفوعة من core.formatter أو core.pdf_converter.
+
 📚 الدوال المتاحة:
-1️⃣ لمحاكاة الملف: replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
-2️⃣ لتنسيق تحليل النموذج الذكي: format_analysis_report(analysis_data, report_title, company_name, period, output_format='excel', style='accounting', output_dir='{WORKSPACE_DIR}')
+1️⃣ لتحويل PDF إلى Word:
+- convert_pdf_to_word(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+
+2️⃣ لاستخراج جداول PDF إلى Excel:
+- convert_pdf_to_excel(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+
+3️⃣ لمحاكاة ملف Word/Excel:
+- replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+
+4️⃣ لتحليل نموذج Excel:
+- format_analysis_report(analysis_data, report_title, company_name, period, output_format='excel', style='accounting', output_dir='{WORKSPACE_DIR}')
 
 ==========================================
-📝 مثال:
+📝 مثال 1: تحويل PDF إلى Word
+==========================================
+```python
+from core.pdf_converter import convert_pdf_to_word
+
+output_path = convert_pdf_to_word(
+    pdf_path='{uploaded_file_path}',
+    output_dir='{WORKSPACE_DIR}'
+)
+print("SUCCESS: " + output_path)
+```
+
+==========================================
+📝 مثال 2: استخراج جداول من PDF إلى Excel
+==========================================
+```python
+from core.pdf_converter import convert_pdf_to_excel
+
+output_path = convert_pdf_to_excel(
+    pdf_path='{uploaded_file_path}',
+    output_dir='{WORKSPACE_DIR}'
+)
+print("SUCCESS: " + output_path)
+```
+
+==========================================
+📝 مثال 3: محاكاة ملف Word مرفوع
+==========================================
 ```python
 from core.formatter import replicate_document
-result = replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+
+result = replicate_document(
+    source_file='{uploaded_file_path}',
+    output_dir='{WORKSPACE_DIR}'
+)
 print("SUCCESS: " + result['output_path'])
 ```
+
+==========================================
+📝 مثال 4: تحليل نموذج Excel
+==========================================
+```python
+from core.formatter import format_analysis_report
+
+result = format_analysis_report(
+    analysis_data={{}},
+    report_title="تقرير",
+    company_name="شركة",
+    period="2026",
+    output_format='excel',
+    style='accounting',
+    output_dir='{WORKSPACE_DIR}'
+)
+print("SUCCESS: " + result['output_path'])
+```
+
 ⚠️ تحذير: ممنوع اختراع دوال. ابدأ بـ ```python وانهِ بـ ```"""
 
         # ==========================================
