@@ -5,6 +5,7 @@ import streamlit as st
 import os
 import sys
 import time
+import re  # <-- إضافة جديدة لتنظيف المدخلات
 from datetime import datetime
 
 # إضافة مسار المشروع
@@ -22,7 +23,7 @@ MAX_AGE_HOURS = 24  # عمر الملف الأقصى بالساعات
 # إعداد الصفحة
 st.set_page_config(
     page_title="Officia - الوكيل الذكي",
-    page_icon="",
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -96,12 +97,9 @@ def cleanup_old_files():
                 'size': os.path.getsize(file_path)
             })
     
-    # ترتيب من الأقدم إلى الأحدث
     files.sort(key=lambda x: x['mtime'])
-    
     deleted = []
     
-    # 1. حذف الملفات الأقدم من MAX_AGE_HOURS
     for file in files[:]:
         if file['age_hours'] > MAX_AGE_HOURS:
             try:
@@ -111,7 +109,6 @@ def cleanup_old_files():
             except:
                 pass
     
-    # 2. إذا تجاوزنا الحد، نحذف الأقدم
     while len(files) > MAX_FILES:
         oldest = files.pop(0)
         try:
@@ -140,7 +137,6 @@ def get_workspace_files():
                 'created': datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
             })
     
-    # ترتيب من الأحدث إلى الأقدم
     files.sort(key=lambda x: x['mtime'], reverse=True)
     return files
 
@@ -154,7 +150,22 @@ def get_total_size():
                 total += os.path.getsize(file_path)
     return total
 
+# ==========================================
+# دالة تأمين المدخلات (جديدة)
+# ==========================================
+def sanitize_input(text: str) -> str:
+    """تنظيف المدخلات من أكواد حقن محتملة"""
+    if not text:
+        return text
+    # إزالة وسوم HTML/JS الأساسية
+    text = re.sub(r'<[^>]+>', '', text)
+    # منع محاولات استدعاء أوامر نظام شائعة في البرومبت
+    text = re.sub(r'(?i)(os\.system|subprocess\.|exec\(|eval\()', '[BLOCKED]', text)
+    return text.strip()
+
+# ==========================================
 # تهيئة الجلسة
+# ==========================================
 if 'agent' not in st.session_state:
     st.session_state.agent = Agent()
     st.session_state.chat_history = []
@@ -167,7 +178,6 @@ with st.sidebar:
     st.markdown("---")
     
     st.subheader("📊 معلومات النظام")
-    
     st.markdown("**المزودون والنماذج المتاحة:**")
     
     st.markdown(f"""
@@ -189,18 +199,11 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     
     st.info("💡 النظام ينتقل تلقائياً بين المزودين عند فشل أي منهم")
-    
     st.write(f"**مجلد العمل:**")
     st.code(WORKSPACE_DIR, language="text")
-    
     st.markdown("---")
     
-    # ==========================================
-    # إدارة مساحة العمل الذكية
-    # ==========================================
     st.subheader("📁 مساحة العمل")
-    
-    # تنظيف تلقائي عند تحميل الصفحة
     deleted_files = cleanup_old_files()
     if deleted_files:
         st.warning(f"🗑️ تم حذف {len(deleted_files)} ملف قديم تلقائياً")
@@ -208,28 +211,23 @@ with st.sidebar:
     workspace_files = get_workspace_files()
     total_size = get_total_size()
     
-    # عرض إحصائيات
     st.write(f"**عدد الملفات:** {len(workspace_files)} / {MAX_FILES}")
     st.write(f"**الحجم الكلي:** {total_size/1024:.1f} KB")
     
-    # شريط تقدم
     usage_percent = (len(workspace_files) / MAX_FILES) * 100
     if usage_percent > 80:
         st.warning(f"⚠️ اقتربت من الحد الأقصى ({usage_percent:.0f}%)")
     else:
         st.progress(usage_percent / 100)
     
-    # تنبيه مهم
     st.markdown("""
     <div class="warning-box">
     <small>⚠️ <b>تنبيه:</b> الملفات تُحذف تلقائياً بعد 24 ساعة أو عند إعادة تشغيل التطبيق. حمّل ملفاتك المهمة فوراً!</small>
     </div>
     """, unsafe_allow_html=True)
-    
     st.markdown("---")
     
-    # زر مسح جميع الملفات
-    if st.button("️ مسح جميع الملفات", use_container_width=True):
+    if st.button("🗑️ مسح جميع الملفات", use_container_width=True):
         if os.path.exists(WORKSPACE_DIR):
             for f in os.listdir(WORKSPACE_DIR):
                 file_path = os.path.join(WORKSPACE_DIR, f)
@@ -258,7 +256,7 @@ with chat_container:
         if message['role'] == 'user':
             st.markdown(f"""
             <div class="chat-message user-message">
-                <strong> أنت:</strong><br>
+                <strong>👤 أنت:</strong><br>
                 {message['content']}
             </div>
             """, unsafe_allow_html=True)
@@ -279,7 +277,6 @@ if workspace_files:
     st.markdown("---")
     st.markdown('<div class="file-card"><strong>📂 الملفات الجاهزة للتحميل:</strong></div>', unsafe_allow_html=True)
     
-    # عرض في أعمدة (2 لكل صف)
     cols = st.columns(2)
     for idx, file_info in enumerate(workspace_files):
         file = file_info['name']
@@ -291,7 +288,7 @@ if workspace_files:
         mime_type = "application/octet-stream"
         if file.endswith('.docx'):
             mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        elif file.endswith('.xlsx'):
+        elif file.endswith('.xlsx') or file.endswith('.xls'):
             mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         elif file.endswith('.pdf'):
             mime_type = "application/pdf"
@@ -310,11 +307,36 @@ if workspace_files:
                 use_container_width=True
             )
 else:
-    st.info("📭 لا توجد ملفات حالياً. اطلب من الوكيل إنشاء ملف!")
+    st.info("📭 لا توجد ملفات حالياً. اطلب من الوكيل إنشاء ملف أو ارفع ملفاً للمعالجة!")
 
-# إدخال الطلب
+# ==========================================
+# منطقة الإدخال ورفع الملفات (محدثة)
+# ==========================================
 st.markdown("---")
-user_input = st.text_input("اكتب طلبك هنا:", placeholder="مثال: أنشئ ملف Excel بأسماء 5 موظفين ورواتبهم", key="input")
+
+# 1. أداة رفع الملفات الجديدة
+st.subheader("📎 إرفاق ملف (اختياري)")
+uploaded_file = st.file_uploader(
+    "اختر ملف PDF, Word, أو Excel للمعالجة أو التحويل",
+    type=['pdf', 'docx', 'xlsx', 'xls']
+)
+
+uploaded_file_path = None
+if uploaded_file is not None:
+    # حفظ الملف المرفوع في مجلد العمل مؤقتاً ليتمكن الوكيل من قراءته
+    uploaded_file_path = os.path.join(WORKSPACE_DIR, uploaded_file.name)
+    with open(uploaded_file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    st.success(f"✅ تم رفع الملف: `{uploaded_file.name}` بنجاح وهو جاهز للمعالجة.")
+
+# 2. حقل الإدخال النصي
+st.markdown("### ✍️ اكتب طلبك:")
+user_input = st.text_input(
+    "اكتب طلبك هنا:", 
+    placeholder="مثال: حول هذا الملف إلى Word / أنشئ ملف Excel بأسماء 5 موظفين", 
+    key="input",
+    label_visibility="collapsed"
+)
 
 col1, col2, col3 = st.columns([3, 1, 1])
 
@@ -328,18 +350,27 @@ with col3:
     if st.button("⏹️ إيقاف"):
         st.stop()
 
-# معالجة الطلب
+# ==========================================
+# معالجة الطلب (محدثة لتعبر عن الملف وتنظف المدخلات)
+# ==========================================
 if submit and user_input:
+    # تنظيف المدخلات من أي أكواد ضارة
+    clean_input = sanitize_input(user_input)
+    
     st.session_state.chat_history.append({
         'role': 'user',
-        'content': user_input
+        'content': user_input  # نعرض النص الأصلي للمستخدم في الشات
     })
     
     files_before = set(os.listdir(WORKSPACE_DIR)) if os.path.exists(WORKSPACE_DIR) else set()
     
     with st.spinner('جاري تنفيذ المهمة... يرجى الانتظار'):
         try:
-            result = st.session_state.agent.execute_task(user_input)
+            # تمرير النص النظيف ومسار الملف المرفوع (إن وجد) للوكيل
+            result = st.session_state.agent.execute_task(
+                user_request=clean_input, 
+                uploaded_file_path=uploaded_file_path
+            )
             
             time.sleep(1)
             
@@ -379,6 +410,6 @@ if submit and user_input:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888;'>
-    <p>Officia v2.1 - الوكيل الذكي للمهام المكتبية | إدارة ذكية للمساحة</p>
+    <p>Officia v2.2 - الوكيل الذكي للمهام المكتبية | دعم رفع الملفات وتأمين المدخلات</p>
 </div>
 """, unsafe_allow_html=True)
