@@ -11,3 +11,5 @@ google-genai
 pdf2docx
 pdfplumber
 PyMuPDF
+arabic-reshaper
+python-bidi
