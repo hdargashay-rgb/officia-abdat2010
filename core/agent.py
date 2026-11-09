@@ -18,7 +18,7 @@ class Agent:
         """دالة التوجيه الذكي: تحلل طلب المستخدم وتحدد الإجراء المناسب"""
         request_lower = user_request.lower()
         
-        routing_rules = {
+      routing_rules = {
             'خطاب': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الخطاب', 'type': 'word'},
             'مذكرة': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء المذكرة', 'type': 'word'},
             'رسالة رسمية': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الرسالة', 'type': 'word'},
@@ -37,9 +37,13 @@ class Agent:
             'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء رواتب الموظفين (Excel متعدد الأوراق)', 'type': 'excel'},
             'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
             'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
-            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
-            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
-            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
+            
+            # --- تمت إضافة قواعد تحويل PDF هنا بشكل صحيح ---
+            'تحويل pdf': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word لتحويل PDF إلى Word', 'type': 'file'},
+            'pdf to word': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word لتحويل PDF إلى Word', 'type': 'file'},
+            'pdf to excel': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel لاستخراج الجداول من PDF', 'type': 'file'},
+            'استخراج جداول': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel لاستخراج الجداول من PDF', 'type': 'file'},
+            
             'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
         }
         
