@@ -37,6 +37,9 @@ class Agent:
             'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء رواتب الموظفين (Excel متعدد الأوراق)', 'type': 'excel'},
             'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
             'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
+            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
+            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
+            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
             'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
         }
         
