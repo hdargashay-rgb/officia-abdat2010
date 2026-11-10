@@ -1,3 +1,12 @@
+"""
+Agent Loop - الحلقة الذكية للوكيل
+يستخدم نظام الأنماط الديناميكي لتصنيف المستندات واختيار الأنماط المناسبة
+"""
+from core.llm_client import LLMClient
+from core.executor import Executor
+from core.config import MAX_AUTO_FIX_ATTEMPTS, WORKSPACE_DIR
+
+
 class Agent:
     def __init__(self):
         self.llm = LLMClient()
@@ -209,9 +218,9 @@ print("SUCCESS: " + result['output_path'])
 ==========================================
 الآن نفذ الطلب: {user_request}
 اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
-            
-        # ==========================================
-        # السيناريو الثالث: دالة مخصصة موجودة (نعرضها فقط مع تحذيرات صارمة)
+
+# ==========================================
+        # السيناريو الثالث: دالة مخصصة موجودة
         # ==========================================
         function_prompts = {
             'generate_styled_letter': f"""أنت كاتب محترف متخصص في إنشاء الخطابات الرسمية.
@@ -239,7 +248,9 @@ print("SUCCESS: " + output_path)
 - ممنوع استخدام from docx import Document مباشرة.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'generate_ats_cv': f"""أنت متخصص في إنشاء السير الذاتية المتوافقة مع ATS.
 {routing_instruction}
@@ -266,7 +277,9 @@ print("SUCCESS: " + output_path)
 - اكتب محتوى شاملاً وأضف دائماً: languages, certifications, projects, interests.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'generate_financial_report': f"""أنت محاسب خبير متخصص في إنشاء التقارير المالية.
 {routing_instruction}
@@ -288,7 +301,9 @@ print("SUCCESS: " + output_path)
 - sections يجب أن تكون LIST من DICTS.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'create_fixed_asset_report': f"""أنت محاسب خبير متخصص في إنشاء تقارير الأصول الثابتة.
 {routing_instruction}
@@ -312,7 +327,9 @@ print("SUCCESS: " + output_path)
 - sections و assets يجب أن تكون LIST من DICTS.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'generate_depreciation_schedule': f"""أنت محاسب خبير متخصص في إنشاء جداول الإهلاك.
 {routing_instruction}
@@ -333,7 +350,9 @@ print("SUCCESS: " + output_path)
 - assets يجب أن تكون LIST من DICTS.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'generate_trial_balance': f"""أنت محاسب خبير متخصص في إنشاء ميزان المراجعة.
 {routing_instruction}
@@ -357,7 +376,9 @@ print("SUCCESS: " + output_path)
 - accounts يجب أن تكون LIST من DICTS، وليست string أبداً!
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```""",
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```""",
 
             'generate_payroll_register': f"""أنت محاسب خبير متخصص في إنشاء كشوف الرواتب.
 {routing_instruction}
@@ -384,10 +405,12 @@ print("SUCCESS: " + output_path)
 - ممنوع اختراع دوال غير موجودة.
 - اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request} \n {routing_instruction} \n ابدأ بـ ```python وانهِ بـ ```"""
+الآن نفذ الطلب: {user_request}
+{routing_instruction}
+ابدأ بـ ```python وانهِ بـ ```"""
         }
         
-        # إرجاع الـ prompt الخاص بالدالة المحددة فقط، أو Fallback إذا لم توجد
+        # إرجاع الـ prompt الخاص بالدالة المحددة
         function_name = routing['function']
         if function_name and function_name in function_prompts:
             return function_prompts[function_name]
@@ -410,6 +433,7 @@ print("SUCCESS: " + output_path)
 1. استخدم الدالة المناسبة من core.formatter
 2. تأكد من تمرير جميع المعاملات المطلوبة
 3. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+
 أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
 
     def _extract_code(self, response: str) -> str:
@@ -418,9 +442,11 @@ print("SUCCESS: " + output_path)
             end = response.find('```', start)
             if end != -1:
                 return response[start:end].strip()
+        
         if '```' in response:
             start = response.find('```') + 3
             end = response.find('```', start)
             if end != -1:
                 return response[start:end].strip()
+        
         return response.strip()
