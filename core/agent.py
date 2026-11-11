@@ -8,7 +8,7 @@ from core.config import MAX_AUTO_FIX_ATTEMPTS, WORKSPACE_DIR
 
 
 class Agent:
-    def __init__(self):
+ def __init__(self):
         self.llm = LLMClient()
         self.executor = Executor()
         self.max_attempts = MAX_AUTO_FIX_ATTEMPTS
