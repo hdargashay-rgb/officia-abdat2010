@@ -14,41 +14,112 @@ class Agent:
         self.max_attempts = MAX_AUTO_FIX_ATTEMPTS
         print("تم تهيئة Agent - الوكيل الذكي")
 
-    def _route_request(self, user_request: str) -> dict:
-        """دالة التوجيه الذكي: تحلل طلب المستخدم وتحدد الإجراء المناسب"""
+ def _route_request(self, user_request: str) -> dict:
+        """دالة التوجيه الذكي الهجين: كلمات مفتاحية أولاً، ثم تصنيف ذكي بالذكاء الاصطناعي"""
         request_lower = user_request.lower()
         
+        # المرحلة 1: المطابقة السريعة بالكلمات المفتاحية (للأداء والسرعة)
         routing_rules = {
-            'خطاب': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الخطاب', 'type': 'word'},
-            'مذكرة': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء المذكرة', 'type': 'word'},
-            'رسالة رسمية': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter لإنشاء الرسالة', 'type': 'word'},
-            'سيرة ذاتية': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv لإنشاء السيرة الذاتية', 'type': 'word'},
-            'cv': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv لإنشاء السيرة الذاتية', 'type': 'word'},
-            'تقرير مالي': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء التقرير المالي (Excel)', 'type': 'excel'},
-            'قائمة الدخل': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء قائمة الدخل (Excel)', 'type': 'excel'},
-            'ميزان عمومية': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report لإنشاء الميزان العمومي (Excel)', 'type': 'excel'},
-            'أصول ثابتة': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report لإنشاء تقرير الأصول الثابتة (Excel متعدد الأوراق)', 'type': 'excel'},
-            'تقرير الأصول': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report لإنشاء تقرير الأصول (Excel متعدد الأوراق)', 'type': 'excel'},
-            'جدول إهلاك': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule لإنشاء جدول الإهلاك (Excel)', 'type': 'excel'},
-            'إهلاك شهري': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule لإنشاء جدول الإهلاك الشهري (Excel)', 'type': 'excel'},
-            'ميزان مراجعة': {'function': 'generate_trial_balance', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_trial_balance لإنشاء ميزان المراجعة (Excel)', 'type': 'excel'},
-            'كشف رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء كشف الرواتب (Excel متعدد الأوراق مع قسائم توقيع)', 'type': 'excel'},
-            'مسير رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء مسير الرواتب (Excel متعدد الأوراق)', 'type': 'excel'},
-            'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register لإنشاء رواتب الموظفين (Excel متعدد الأوراق)', 'type': 'excel'},
-            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لمحاكاة الملف المرفوع', 'type': 'file'},
-            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document لإعادة بناء الملف', 'type': 'file'},
-            'تحويل pdf': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word لتحويل PDF إلى Word', 'type': 'file'},
-            'pdf to word': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word لتحويل PDF إلى Word', 'type': 'file'},
-            'pdf to excel': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel لاستخراج الجداول من PDF', 'type': 'file'},
-            'استخراج جداول': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel لاستخراج الجداول من PDF', 'type': 'file'},
-            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report لتحليل النموذج', 'type': 'excel'}
+            'خطاب': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
+            'مذكرة': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
+            'رسالة رسمية': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
+            'سيرة ذاتية': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv', 'type': 'word'},
+            'cv': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv', 'type': 'word'},
+            'تقرير مالي': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
+            'قائمة الدخل': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
+            'ميزان عمومية': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
+            'أصول ثابتة': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report', 'type': 'excel'},
+            'تقرير الأصول': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report', 'type': 'excel'},
+            'جدول إهلاك': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule', 'type': 'excel'},
+            'إهلاك شهري': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule', 'type': 'excel'},
+            'ميزان مراجعة': {'function': 'generate_trial_balance', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_trial_balance', 'type': 'excel'},
+            'كشف رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
+            'مسير رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
+            'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
+            'payroll': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
+            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document', 'type': 'file'},
+            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document', 'type': 'file'},
+            'تحويل pdf': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word', 'type': 'file'},
+            'pdf to word': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word', 'type': 'file'},
+            'pdf to excel': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel', 'type': 'file'},
+            'استخراج جداول': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel', 'type': 'file'},
+            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report', 'type': 'excel'}
         }
         
         for keyword, rule in routing_rules.items():
             if keyword in request_lower:
-                return {'found': True, 'function': rule['function'], 'instruction': rule['instruction'], 'type': rule['type']}
+                return {'found': True, 'function': rule['function'], 'instruction': rule['instruction'], 'type': rule['type'], 'method': 'keyword'}
         
-        return {'found': False, 'function': None, 'instruction': '', 'type': 'custom'}
+        # المرحلة 2: إذا لم نجد تطابقاً، نستخدم الذكاء الاصطناعي للتصنيف الذكي
+        return self._llm_classify(user_request)
+
+    def _llm_classify(self, user_request: str) -> dict:
+        """استخدام النموذج اللغوي لفهم نية المستخدم واختيار الدالة الأنسب"""
+        available_functions = """
+        1. generate_styled_letter: خطابات، مذكرات، ورسائل رسمية (Word).
+        2. generate_ats_cv: سير ذاتية احترافية متوافقة مع أنظمة التوظيف (Word).
+        3. generate_financial_report: تقارير مالية، قوائم دخل، وميزانيات عمومية (Excel).
+        4. create_fixed_asset_report: تقارير الأصول الثابتة وجداول الإهلاك (Excel).
+        5. generate_trial_balance: ميزان مراجعة محاسبي (أرصدة افتتاحية وحركة وختامية) (Excel).
+        6. generate_payroll_register: كشوف ورواتب ومسيرات موظفين شاملة (Excel).
+        7. convert_pdf_to_word: تحويل ملفات PDF إلى مستندات Word قابلة للتعديل.
+        8. convert_pdf_to_excel: استخراج الجداول والبيانات من ملفات PDF إلى Excel.
+        9. replicate_document: محاكاة أو إعادة بناء ملف مرفوع (Word/Excel).
+        10. format_analysis_report: تحليل بيانات نموذج Excel مرفوع وتنسيقه.
+        """
+        
+        prompt = f"""
+        أنت مصنف ذكي لنظام Officia. مهمتك هي اختيار رقم الدالة الأنسب لطلب المستخدم من القائمة أدناه.
+        
+        طلب المستخدم: "{user_request}"
+        
+        الدوال المتاحة:
+        {available_functions}
+        
+        تعليمات الإجابة:
+        - اكتب رقم الدالة الأنسب فقط (من 1 إلى 10).
+        - إذا كان الطلب لا ينطبق على أي دالة ويحتاج إلى برمجة مخصصة من الصفر، اكتب 0.
+        - لا تكتب أي شرح أو نص إضافي، فقط الرقم.
+        """
+        
+        try:
+            response = self.llm.ask(prompt).strip()
+            # استخراج الرقم من الاستجابة
+            import re
+            numbers = re.findall(r'\d+', response)
+            if numbers:
+                selected_num = int(numbers[0])
+            else:
+                selected_num = 0
+                
+            function_map = {
+                1: 'generate_styled_letter',
+                2: 'generate_ats_cv',
+                3: 'generate_financial_report',
+                4: 'create_fixed_asset_report',
+                5: 'generate_trial_balance',
+                6: 'generate_payroll_register',
+                7: 'convert_pdf_to_word',
+                8: 'convert_pdf_to_excel',
+                9: 'replicate_document',
+                10: 'format_analysis_report'
+            }
+            
+            if selected_num in function_map:
+                func_name = function_map[selected_num]
+                return {
+                    'found': True, 
+                    'function': func_name, 
+                    'instruction': f'🧠 توجيه ذكي: تم تحليل طلبك واختيار دالة {func_name} الأنسب.', 
+                    'type': 'smart_classified',
+                    'method': 'llm'
+                }
+                
+        except Exception as e:
+            print(f"⚠️ فشل التصنيف الذكي: {str(e)}")
+            
+        # إذا فشل كل شيء، نعود للوضع المخصص (Fallback)
+        return {'found': False, 'function': None, 'instruction': '', 'type': 'custom', 'method': 'fallback'}
 
     def execute_task(self, user_request: str, uploaded_file_path: str = None) -> dict:
         print("\n" + "=" * 60)
