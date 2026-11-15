@@ -1289,10 +1289,10 @@ def generate_professional_letter(
 # 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي
 # ==========================================
 def generate_financial_report(
-    report_type: str,
-    company_name: str,
-    period: str,
-    sections: list,
+    report_type: str = "تقرير_مالي",
+    company_name: str = "شركة",
+    period: str = "2026",
+    sections: list = None,
     currency: str = "ريال",
     include_totals: bool = True,
     include_formulas: bool = True,
