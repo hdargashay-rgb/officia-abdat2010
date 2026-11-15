@@ -162,8 +162,8 @@ class Agent:
                     'files_created': result.get('files_created', []), 
                     'code': clean_code
                 }
-
-   def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
+                
+  def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
     routing = self._route_request(user_request)
     routing_instruction = routing['instruction']
     target_function = routing.get('function', 'generate_financial_report')
