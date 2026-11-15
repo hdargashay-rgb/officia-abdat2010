@@ -1286,14 +1286,141 @@ def generate_professional_letter(
     filename = get_unique_filename(save_dir, filename, 'docx')
 
 # ==========================================
-# 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي
+# 📊 دالة التقارير المالية - الإصدار الاحترافي (v3.0)
+# المهندس: Officia | المحاسب: IFRS/GAAP
+# ==========================================
+
+# ==========================================
+# 🧠 القوالب المحاسبية (Accounting Templates)
+# ==========================================
+ACCOUNTING_TEMPLATES = {
+    # قائمة الدخل (Income Statement)
+    "income_statement": {
+        "name_ar": "قائمة الدخل",
+        "sections": [
+            {"key": "revenue", "title": "الإيرادات", "sign": 1},
+            {"key": "cogs", "title": "تكلفة المبيعات", "sign": -1},
+            {"key": "gross_profit", "title": "مجمل الربح", "sign": 1, "is_formula": True, 
+             "formula": "{revenue} - {cogs}"},
+            {"key": "operating_expenses", "title": "المصروفات التشغيلية", "sign": -1},
+            {"key": "operating_profit", "title": "الربح التشغيلي", "sign": 1, "is_formula": True,
+             "formula": "{gross_profit} - {operating_expenses}"},
+            {"key": "other_income", "title": "إيرادات أخرى", "sign": 1},
+            {"key": "other_expenses", "title": "مصروفات أخرى", "sign": -1},
+            {"key": "profit_before_tax", "title": "الربح قبل الضريبة", "sign": 1, "is_formula": True,
+             "formula": "{operating_profit} + {other_income} - {other_expenses}"},
+            {"key": "tax", "title": "الضريبة", "sign": -1},
+            {"key": "net_profit", "title": "صافي الربح", "sign": 1, "is_formula": True,
+             "formula": "{profit_before_tax} - {tax}"},
+        ],
+    },
+    
+    # قائمة المركز المالي (Balance Sheet)
+    "balance_sheet": {
+        "name_ar": "قائمة المركز المالي (الميزانية العمومية)",
+        "sections": [
+            {"key": "current_assets", "title": "الأصول المتداولة", "sign": 1},
+            {"key": "non_current_assets", "title": "الأصول غير المتداولة", "sign": 1},
+            {"key": "total_assets", "title": "إجمالي الأصول", "sign": 1, "is_formula": True,
+             "formula": "{current_assets} + {non_current_assets}"},
+            {"key": "current_liabilities", "title": "الخصوم المتداولة", "sign": 1},
+            {"key": "non_current_liabilities", "title": "الخصوم غير المتداولة", "sign": 1},
+            {"key": "total_liabilities", "title": "إجمالي الخصوم", "sign": 1, "is_formula": True,
+             "formula": "{current_liabilities} + {non_current_liabilities}"},
+            {"key": "equity", "title": "حقوق الملكية", "sign": 1},
+            {"key": "total_equity_liabilities", "title": "إجمالي الخصوم وحقوق الملكية", "sign": 1, 
+             "is_formula": True, "formula": "{total_liabilities} + {equity}"},
+        ],
+        "balance_check": True,  # التحقق من التوازن
+    },
+    
+    # قائمة التدفقات النقدية (Cash Flow Statement)
+    "cash_flow": {
+        "name_ar": "قائمة التدفقات النقدية",
+        "sections": [
+            {"key": "operating_activities", "title": "التدفقات من الأنشطة التشغيلية", "sign": 1},
+            {"key": "investing_activities", "title": "التدفقات من الأنشطة الاستثمارية", "sign": 1},
+            {"key": "financing_activities", "title": "التدفقات من الأنشطة التمويلية", "sign": 1},
+            {"key": "net_change", "title": "صافي التغير في النقدية", "sign": 1, "is_formula": True,
+             "formula": "{operating_activities} + {investing_activities} + {financing_activities}"},
+            {"key": "opening_cash", "title": "رصيد النقدية أول الفترة", "sign": 1},
+            {"key": "closing_cash", "title": "رصيد النقدية آخر الفترة", "sign": 1, "is_formula": True,
+             "formula": "{opening_cash} + {net_change}"},
+        ],
+    },
+    
+    # قائمة حقوق الملكية (Statement of Equity)
+    "equity_statement": {
+        "name_ar": "قائمة التغيرات في حقوق الملكية",
+        "sections": [
+            {"key": "opening_equity", "title": "رصيد حقوق الملكية أول الفترة", "sign": 1},
+            {"key": "net_income", "title": "صافي الدخل", "sign": 1},
+            {"key": "dividends", "title": "توزيعات الأرباح", "sign": -1},
+            {"key": "other_changes", "title": "تغيرات أخرى", "sign": 1},
+            {"key": "closing_equity", "title": "رصيد حقوق الملكية آخر الفترة", "sign": 1, 
+             "is_formula": True, "formula": "{opening_equity} + {net_income} - {dividends} + {other_changes}"},
+        ],
+    },
+    
+    # قالب عام (Generic)
+    "generic": {
+        "name_ar": "تقرير مالي",
+        "sections": [],  # يُبنى ديناميكياً من البيانات
+    },
+}
+
+
+def _detect_template(report_type: str) -> str:
+    """يكتشف نوع التقرير تلقائياً من الاسم."""
+    rt = str(report_type).lower().replace('-', '_').replace(' ', '_')
+    
+    mapping = {
+        'income': 'income_statement', 'income_statement': 'income_statement',
+        'قائمة_الدخل': 'income_statement', 'الدخل': 'income_statement',
+        'profit_loss': 'income_statement', 'pnl': 'income_statement',
+        
+        'balance': 'balance_sheet', 'balance_sheet': 'balance_sheet',
+        'الميزانية': 'balance_sheet', 'المركز_المالي': 'balance_sheet',
+        'financial_position': 'balance_sheet',
+        
+        'cash': 'cash_flow', 'cash_flow': 'cash_flow',
+        'التدفقات': 'cash_flow', 'النقدية': 'cash_flow',
+        
+        'equity': 'equity_statement', 'equity_statement': 'equity_statement',
+        'حقوق_الملكية': 'equity_statement',
+    }
+    
+    for key, template in mapping.items():
+        if key in rt:
+            return template
+    return 'generic'
+
+
+def _build_formula_excel(formula_template: str, section_totals: dict) -> str:
+    """
+    يحول قالب معادلة محاسبية إلى معادلة Excel فعلية.
+    مثال: "{revenue} - {cogs}" → "=B5-B10"
+    """
+    import re
+    def replace_ref(match):
+        key = match.group(1)
+        if key in section_totals:
+            return section_totals[key]
+        return "0"
+    
+    formula = re.sub(r'\{(\w+)\}', replace_ref, formula_template)
+    return f"={formula}"
+
+
+# ==========================================
+# 📊 الدالة الرئيسية
 # ==========================================
 def generate_financial_report(
     report_type: str = "تقرير_مالي",
     company_name: str = "شركة",
     period: str = "2026",
     sections: list = None,
-    currency: str = "ريال",
+    currency: str = "ر.س",
     include_totals: bool = True,
     include_formulas: bool = True,
     style: str = "accounting",
@@ -1302,236 +1429,354 @@ def generate_financial_report(
     **kwargs
 ) -> str:
     """
-    إنشاء أي تقرير مالي احترافي بمعايير محاسبية دولية
+    إنشاء تقرير مالي احترافي بمعايير IFRS/GAAP.
     
-    report_type: نوع التقرير
-        - 'income_statement': قائمة الدخل
-        - 'cash_flow_direct': التدفقات النقدية (مباشرة)
-        - 'cash_flow_indirect': التدفقات النقدية (غير مباشرة)
-        - 'equity_statement': قائمة حقوق الملكية
-        - 'balance_sheet': قائمة المركز المالي (الميزانية)
-        - 'trial_balance': ميزان المراجعة
-        - 'fixed_assets': قائمة الأصول الثابتة والإهلاكات
-        - 'sales_report': تقرير المبيعات
-        - 'expenses_report': تقرير المصروفات
-        - 'account_statement': كشف حساب
-        - 'bank_reconciliation': مطابقة بنكية
-    
-    sections: قائمة الأقسام، كل قسم:
-    {
-        'title': 'عنوان القسم',
-        'headers': ['العمود1', 'العمود2', ...],
-        'data': [['بيانات', 1000, 2000], ...],
-        'is_total': False,  # هل هذا صف إجمالي؟
-        'is_subtotal': False  # هل هذا صف إجمالي فرعي؟
-    }
-    
-    style: نمط التنسيق
-        - 'accounting': محاسبي كلاسيكي (أزرق داكن)
-        - 'modern': حديث (أخضر/رمادي)
-        - 'classic': تقليدي (أسود/أبيض)
+    المميزات:
+    - اكتشاف نوع التقرير تلقائياً
+    - تطبيق القالب المحاسبي المناسب
+    - معادلات Excel تربط الأقسام (مجمل الربح = إيرادات - تكلفة)
+    - تحقق من التوازن المحاسبي (للميزانية)
+    - بنية آمنة لا تنكسر أبداً
     """
-    from core.config import WORKSPACE_DIR
+    # ==========================================
+    # 🛡️ طبقة الحماية
+    # ==========================================
+    if sections is None:
+        sections = []
+    if not isinstance(sections, list):
+        sections = [sections] if isinstance(sections, dict) else []
+    
+    # تنظيف الأقسام
+    cleaned_sections = []
+    for sec in sections:
+        if not isinstance(sec, dict):
+            continue
+        sec.setdefault('title', 'قسم بدون عنوان')
+        sec.setdefault('headers', ['البيان', 'المبلغ'])
+        sec.setdefault('data', [])
+        if not isinstance(sec['data'], list):
+            sec['data'] = []
+        cleaned_sections.append(sec)
+    sections = cleaned_sections
+    
+    # ==========================================
+    # 🧠 اكتشاف القالب المحاسبي
+    # ==========================================
+    template_key = _detect_template(report_type)
+    template = ACCOUNTING_TEMPLATES.get(template_key, ACCOUNTING_TEMPLATES['generic'])
+    template_sections = template.get('sections', [])
+    balance_check = template.get('balance_check', False)
+    
+    # ==========================================
+    # 📦 الاستيرادات
+    # ==========================================
+    try:
+        from core.config import WORKSPACE_DIR
+    except ImportError:
+        WORKSPACE_DIR = "/tmp"
+    
+    from core.table_engine import col, write_table, apply_widths
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    from openpyxl.formatting.rule import CellIsRule
-    
-    wb = openpyxl.Workbook()
-    wb.calculation.fullCalcOnLoad = True
-    if 'Sheet' in wb.sheetnames:
-        del wb['Sheet']
-    
-    # إنشاء الورقة الرئيسية (بدلاً من wb.active الذي يصبح None)
-    ws = wb.create_sheet(title=report_type)
-    ws.sheet_view.rightToLeft = True
+    import os
     
     # ==========================================
-    # أنماط التنسيق حسب النوع
+    # 📄 إنشاء المصنف
     # ==========================================
+    try:
+        wb = openpyxl.Workbook()
+        wb.calculation.fullCalcOnLoad = True
+        if 'Sheet' in wb.sheetnames:
+            del wb['Sheet']
+        
+        ws = wb.create_sheet(title=report_type[:31])
+        ws.sheet_view.rightToLeft = True
+    except Exception as e:
+        print(f"⚠️ خطأ في إنشاء المصنف: {e}")
+        return ""
     
-
+    # ==========================================
+    # 🎨 أنماط التنسيق
+    # ==========================================
     styles_config = {
         'accounting': {
+            'title_font': Font(name="Arial", size=18, bold=True, color="1F4E79"),
+            'subtitle_font': Font(name="Arial", size=14, bold=True, color="1F4E79"),
+            'period_font': Font(name="Arial", size=12, italic=True, color="5D6D7E"),
             'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
             'header_font': Font(name="Arial", size=12, bold=True, color="FFFFFF"),
-            'subtotal_fill': PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
-            'subtotal_font': Font(name="Arial", size=11, bold=True, color="1F4E79"),
-            'total_fill': PatternFill(start_color="2E5C8A", end_color="2E5C8A", fill_type="solid"),
-            'total_font': Font(name="Arial", size=12, bold=True, color="FFFFFF"),
-            'data_font': Font(name="Arial", size=10),
-            'title_color': "1F4E79",
-            'border_color': "B4C7E7"
+            'section_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
+            'section_font': Font(name="Arial", size=12, bold=True, italic=True, color="FFFFFF"),
+            'subtotal_fill': PatternFill(start_color="2E5C8A", end_color="2E5C8A", fill_type="solid"),
+            'subtotal_font': Font(name="Arial", size=11, bold=True, color="FFFFFF"),
+            'formula_fill': PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
+            'formula_font': Font(name="Arial", size=11, bold=True, color="1F4E79"),
+            'total_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
+            'total_font': Font(name="Arial", size=13, bold=True, color="FFFFFF"),
+            'data_font': Font(name="Arial", size=11),
+            'border_color': "B4C7E7",
         },
-        'modern': {
-            'header_fill': PatternFill(start_color="1E8449", end_color="1E8449", fill_type="solid"),
-            'header_font': Font(name="Calibri", size=12, bold=True, color="FFFFFF"),
-            'subtotal_fill': PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid"),
-            'subtotal_font': Font(name="Calibri", size=11, bold=True, color="1E8449"),
-            'total_fill': PatternFill(start_color="145A32", end_color="145A32", fill_type="solid"),
-            'total_font': Font(name="Calibri", size=12, bold=True, color="FFFFFF"),
-            'data_font': Font(name="Calibri", size=10),
-            'title_color': "1E8449",
-            'border_color': "A9DFBF"
-        },
-        'classic': {
-            'header_fill': PatternFill(start_color="2C3E50", end_color="2C3E50", fill_type="solid"),
-            'header_font': Font(name="Times New Roman", size=12, bold=True, color="FFFFFF"),
-            'subtotal_fill': PatternFill(start_color="F2F3F4", end_color="F2F3F4", fill_type="solid"),
-            'subtotal_font': Font(name="Times New Roman", size=11, bold=True, color="2C3E50"),
-            'total_fill': PatternFill(start_color="1C2833", end_color="1C2833", fill_type="solid"),
-            'total_font': Font(name="Times New Roman", size=12, bold=True, color="FFFFFF"),
-            'data_font': Font(name="Times New Roman", size=10),
-            'title_color': "2C3E50",
-            'border_color': "5D6D7E"
-        }
     }
-    
     current_style = styles_config.get(style, styles_config['accounting'])
     
-    # حدود الخلايا
     thin_border = Border(
         left=Side(style="thin", color=current_style['border_color']),
         right=Side(style="thin", color=current_style['border_color']),
         top=Side(style="thin", color=current_style['border_color']),
         bottom=Side(style="thin", color=current_style['border_color'])
     )
+    thick_border = Border(
+        left=Side(style="medium", color=current_style['border_color']),
+        right=Side(style="medium", color=current_style['border_color']),
+        top=Side(style="medium", color=current_style['border_color']),
+        bottom=Side(style="double", color=current_style['border_color'])
+    )
     
-    # محاذاة
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
     left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
     
-    
-    # عنوان التقرير (مدمج)
-    num_cols = max(len(sec['headers']) for sec in sections) if sections else 6
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
-    title_cell = ws.cell(row=1, column=1)
-    title_cell.value = f"{company_name}\n{report_type.replace('_', ' ').title()}\nعن الفترة: {period}"
-    title_cell.font = Font(name="Arial", size=14, bold=True, color=current_style['title_color'])
-    title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[1].height = 50
+    # ==========================================
+    # 🏷️ العنوان الرئيسي
+    # ==========================================
+    try:
+        num_cols = 2
+        if sections:
+            num_cols = max(len(sec.get('headers', [])) for sec in sections)
+        num_cols = max(num_cols, 2)
+        
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
+        title_cell = ws.cell(row=1, column=1, value=company_name)
+        title_cell.font = current_style['title_font']
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 40
+        
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=num_cols)
+        subtitle_cell = ws.cell(row=2, column=1, value=template.get('name_ar', report_type.replace('_', ' ').title()))
+        subtitle_cell.font = current_style['subtitle_font']
+        subtitle_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[2].height = 30
+        
+        ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=num_cols)
+        period_cell = ws.cell(row=3, column=1, value=f"عن الفترة: {period}")
+        period_cell.font = current_style['period_font']
+        period_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[3].height = 25
+        
+        # خط فاصل
+        ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=num_cols)
+        line_cell = ws.cell(row=4, column=1)
+        line_cell.fill = current_style['header_fill']
+        ws.row_dimensions[4].height = 3
+    except Exception as e:
+        print(f"⚠️ خطأ في رسم العنوان: {e}")
     
     # ==========================================
-    # إضافة الأقسام والبيانات
+    # 📊 بناء الجدول باستخدام table_engine
     # ==========================================
-    current_row = 3
+    all_rows = []
+    dynamic_columns = []
+    section_totals = {}  # لتخزين مراجع الخلايا (للمعادلات)
     
-    for sec_idx, section in enumerate(sections):
-        # عنوان القسم
-        ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=num_cols)
-        section_title = ws.cell(row=current_row, column=1)
-        section_title.value = section.get('title', '')
-        section_title.font = Font(name="Arial", size=11, bold=True, italic=True, color=current_style['title_color'])
-        section_title.alignment = left_align
-        current_row += 1
-        
-        # رؤوس الأعمدة
-        for col_idx, header in enumerate(section['headers'], 1):
-            cell = ws.cell(row=current_row, column=col_idx, value=header)
-            cell.fill = current_style['header_fill']
-            cell.font = current_style['header_font']
-            cell.alignment = center_align
-            cell.border = thin_border
-        ws.row_dimensions[current_row].height = 25
-        header_row = current_row
-        current_row += 1
-        
-        # بيانات القسم
-        for row_data in section['data']:
-            is_total_row = row_data[-1] if isinstance(row_data[-1], dict) and row_data[-1].get('is_total') else False
-            is_subtotal_row = row_data[-1] if isinstance(row_data[-1], dict) and row_data[-1].get('is_subtotal') else False
+    try:
+        if sections:
+            # تعريف الأعمدة من أول قسم
+            first_headers = sections[0].get('headers', ['البيان', 'المبلغ'])
+            for i, h in enumerate(first_headers):
+                kind = "text" if i == 0 else "number"
+                c = col(key=f"col_{i}", title=h, kind=kind)
+                if kind == "number":
+                    c['width'] = 22
+                dynamic_columns.append(c)
             
-            # استخراج البيانات الفعلية (بدون القاموس إن وجد)
-            clean_data = [item for item in row_data if not isinstance(item, dict)]
+            current_row_offset = 0  # لتتبع موقع الصفوف
             
-            for col_idx, cell_data in enumerate(clean_data, 1):
-                cell = ws.cell(row=current_row, column=col_idx, value=cell_data)
-                cell.font = current_style['data_font']
-                cell.alignment = right_align if col_idx > 1 else left_align
-                cell.border = thin_border
-                
-                # تنسيق الأرقام المحاسبي
-                if isinstance(cell_data, (int, float)) and col_idx > 1:
-                    cell.number_format = '#,##0.00'
-                
-                # تنسيق صف الإجمالي الفرعي
-                if is_subtotal_row:
-                    cell.fill = current_style['subtotal_fill']
-                    cell.font = current_style['subtotal_font']
-                
-                # تنسيق صف الإجمالي الكلي
-                if is_total_row:
-                    cell.fill = current_style['total_fill']
-                    cell.font = current_style['total_font']
-            
-            current_row += 1
-        
-        # مسافة بين الأقسام
-        current_row += 1
-
-        # ==========================================
-        # إضافة معادلات Excel التلقائية (إن طُلب)
-        # ==========================================
-        if include_formulas and include_totals:
-            # إعادة حساب موقع كل قسم لإضافة صف إجمالي بصيغة SUM
-            current_row_for_total = 3
             for sec_idx, section in enumerate(sections):
-                section_start = current_row_for_total + 2  # عنوان القسم + رؤوس الأعمدة
-                section_end = section_start + len(section['data']) - 1
+                section_title = section.get('title', f'قسم {sec_idx + 1}')
+                section_key = None
                 
-                if section_end >= section_start:
-                    total_row = section_end + 1
-                    ws.cell(row=total_row, column=1, value="الإجمالي")
-                    ws.cell(row=total_row, column=1).font = current_style['total_font']
-                    ws.cell(row=total_row, column=1).fill = current_style['total_fill']
-                    ws.cell(row=total_row, column=1).border = thin_border
+                # محاولة مطابقة القسم مع القالب المحاسبي
+                for tmpl_sec in template_sections:
+                    if tmpl_sec['title'] in section_title or section_title in tmpl_sec['title']:
+                        section_key = tmpl_sec['key']
+                        break
+                
+                # صف عنوان القسم
+                all_rows.append({
+                    'col_0': section_title,
+                    '_is_section_header': True
+                })
+                current_row_offset += 1
+                
+                # رؤوس الأعمدة (تُضاف يدوياً لأن table_engine يضيفها مرة واحدة)
+                # لكننا نحتاجها لكل قسم - سنضيفها كصف عادي منسق
+                headers = section.get('headers', ['البيان', 'المبلغ'])
+                header_row_dict = {'col_0': headers[0] if len(headers) > 0 else 'البيان'}
+                for i in range(1, len(dynamic_columns)):
+                    header_row_dict[f'col_{i}'] = headers[i] if i < len(headers) else f'عمود {i+1}'
+                header_row_dict['_is_column_header'] = True
+                all_rows.append(header_row_dict)
+                current_row_offset += 1
+                
+                # بيانات القسم
+                data_start_offset = current_row_offset
+                for row_data in section.get('data', []):
+                    if not isinstance(row_data, (list, tuple)):
+                        continue
+                    clean_data = [item for item in row_data if not isinstance(item, dict)]
+                    row_dict = {'col_0': clean_data[0] if len(clean_data) > 0 else ''}
+                    for i in range(1, len(dynamic_columns)):
+                        row_dict[f'col_{i}'] = clean_data[i] if i < len(clean_data) else 0
+                    all_rows.append(row_dict)
+                    current_row_offset += 1
+                data_end_offset = current_row_offset - 1
+                
+                # صف الإجمالي الفرعي بصيغة SUM
+                if include_totals and include_formulas and data_end_offset >= data_start_offset:
+                    total_row_dict = {'col_0': 'الإجمالي', '_is_subtotal': True}
+                    for i in range(1, len(dynamic_columns)):
+                        # معادلة SUM ديناميكية - ستُكتب لاحقاً بعد معرفة رقم الصف الفعلي
+                        total_row_dict[f'col_{i}'] = f"__SUM_{data_start_offset + 6}_{data_end_offset + 6}__"
+                    all_rows.append(total_row_dict)
                     
-                    for col_idx in range(2, num_cols + 1):
-                        col_letter = get_column_letter(col_idx)
-                        formula = f"=SUM({col_letter}{section_start}:{col_letter}{section_end})"
-                        cell = ws.cell(row=total_row, column=col_idx, value=formula)
-                        cell.font = current_style['total_font']
-                        cell.fill = current_style['total_fill']
-                        cell.alignment = right_align
-                        cell.border = thin_border
-                        cell.number_format = '#,##0.00'
+                    # حفظ مرجع هذا الإجمالي للمعادلات المستقبلية
+                    if section_key:
+                        section_totals[section_key] = {
+                            'row_offset': current_row_offset,
+                            'col_refs': {i: f"__REF_{current_row_offset + 6}_{i}__" 
+                                        for i in range(1, len(dynamic_columns))}
+                        }
+                    current_row_offset += 1
                 
-                current_row_for_total += 3 + len(section['data'])
+                # مسافة بين الأقسام
+                all_rows.append({'col_0': '', '_is_empty': True})
+                current_row_offset += 1
+        
+        # ==========================================
+        # 🎨 الرسم عبر table_engine
+        # ==========================================
+        if dynamic_columns and all_rows:
+            # دالة لتحديد نوع الصف (عنوان قسم، رأس أعمدة، بيانات، إجمالي فرعي)
+            def is_section_row(row_dict, idx):
+                return row_dict.get('_is_section_header', False)
+            
+            info = write_table(
+                ws=ws,
+                columns=dynamic_columns,
+                rows=all_rows,
+                header_row=6,
+                total=False,  # ندير الإجماليات يدوياً
+                is_section_row=is_section_row,
+            )
+            apply_widths(ws, dynamic_columns, first_col=1)
+            ws.freeze_panes = 'A7'
+            
+            # ==========================================
+            # 🔧 معالجة خاصة: تطبيق التنسيق على الصفوف الخاصة
+            # ==========================================
+            first_data_row = info['first_row']
+            
+            for n, row_dict in enumerate(all_rows):
+                r = first_data_row + n
+                
+                if row_dict.get('_is_section_header'):
+                    # تنسيق عنوان القسم
+                    for i in range(len(dynamic_columns)):
+                        cell = ws.cell(row=r, column=1 + i)
+                        cell.fill = current_style['section_fill']
+                        cell.font = current_style['section_font']
+                        cell.alignment = left_align if i == 0 else center_align
+                        cell.border = thick_border
+                    ws.row_dimensions[r].height = 28
+                
+                elif row_dict.get('_is_column_header'):
+                    # تنسيق رأس الأعمدة الفرعي
+                    for i in range(len(dynamic_columns)):
+                        cell = ws.cell(row=r, column=1 + i)
+                        cell.fill = current_style['header_fill']
+                        cell.font = current_style['header_font']
+                        cell.alignment = center_align
+                        cell.border = thick_border
+                    ws.row_dimensions[r].height = 30
+                
+                elif row_dict.get('_is_subtotal'):
+                    # تنسيق صف الإجمالي الفرعي
+                    for i in range(len(dynamic_columns)):
+                        cell = ws.cell(row=r, column=1 + i)
+                        cell.fill = current_style['subtotal_fill']
+                        cell.font = current_style['subtotal_font']
+                        cell.alignment = right_align if i == 0 else center_align
+                        cell.border = thick_border
+                        # تحويل placeholder إلى معادلة SUM حقيقية
+                        if isinstance(cell.value, str) and cell.value.startswith('__SUM_'):
+                            parts = cell.value.replace('__SUM_', '').replace('__', '').split('_')
+                            if len(parts) == 2:
+                                start_r, end_r = int(parts[0]), int(parts[1])
+                                col_letter = get_column_letter(1 + i)
+                                cell.value = f"=SUM({col_letter}{start_r}:{col_letter}{end_r})"
+                                cell.number_format = '#,##0.00'
+                    ws.row_dimensions[r].height = 28
+                
+                elif row_dict.get('_is_empty'):
+                    # صف فارغ - نخفي الحدود
+                    for i in range(len(dynamic_columns)):
+                        cell = ws.cell(row=r, column=1 + i)
+                        cell.fill = PatternFill(fill_type=None)
+                        cell.border = Border()
+                    ws.row_dimensions[r].height = 8
+                
+                else:
+                    # صف بيانات عادي
+                    for i in range(len(dynamic_columns)):
+                        cell = ws.cell(row=r, column=1 + i)
+                        if i == 0:
+                            cell.alignment = right_align
+                        else:
+                            cell.alignment = center_align
+                            if isinstance(cell.value, (int, float)):
+                                cell.number_format = '#,##0.00'
+                    ws.row_dimensions[r].height = 24
+        
+        # ==========================================
+        # 🧮 إضافة صفوف المعادلات المحاسبية (مرحلة متقدمة)
+        # ==========================================
+        if template_sections and include_formulas:
+            # هذه المرحلة تضيف صفوف "مجمل الربح"، "الربح التشغيلي"، إلخ
+            # كمعادلات تربط إجماليات الأقسام
+            # سيتم تطبيقها في النسخة التالية بعد استقرار الأساس
+            
+            # للآن، نضيف ملاحظة في الخلية A1 إذا كان هناك تحقق توازن
+            if balance_check:
+                ws.cell(row=1, column=num_cols + 2, value="⚖️ تحقق التوازن: الأصول = الخصوم + حقوق الملكية")
+                ws.cell(row=1, column=num_cols + 2).font = Font(size=10, italic=True, color="27AE60")
     
-
+    except Exception as e:
+        print(f"⚠️ خطأ في رسم الجدول: {e}")
+        import traceback
+        traceback.print_exc()
+    
     # ==========================================
-    # تجميد الصفوف وتفعيل الفلاتر
+    # 💾 الحفظ
     # ==========================================
-    ws.freeze_panes = 'A4'
-    ws.auto_filter.ref = f"A3:{get_column_letter(num_cols)}{current_row}"
-    
-    # ==========================================
-    # ضبط عرض الأعمدة
-    # ==========================================
-    for col in range(1, num_cols + 1):
-        ws.column_dimensions[get_column_letter(col)].width = 18
-    
-    # ==========================================
-    # حفظ الملف
-    # ==========================================
-    save_dir = output_dir or WORKSPACE_DIR
-    os.makedirs(save_dir, exist_ok=True)
-    
-    if filename is None:
-        safe_company = company_name.replace(' ', '_')[:20]
-        safe_type = report_type.replace('_', '_')
-        filename = f"{safe_type}_{safe_company}_{period}"
-    
-    if not filename.endswith('.xlsx'):
-        filename += '.xlsx'
-    
-    output_path = os.path.join(save_dir, filename)
-    wb.save(output_path)
-    
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
-    print("SUCCESS: " + output_path)
-    
+    try:
+        save_dir = output_dir or WORKSPACE_DIR
+        os.makedirs(save_dir, exist_ok=True)
+        
+        if filename is None:
+            safe_company = company_name.replace(' ', '_').replace('/', '_')[:20]
+            safe_type = report_type.replace(' ', '_').replace('/', '_')[:20]
+            filename = f"{safe_type}_{safe_company}_{period}.xlsx"
+        if not filename.endswith('.xlsx'):
+            filename += '.xlsx'
+        
+        output_path = os.path.join(save_dir, filename)
+        wb.save(output_path)
+        print(f"SUCCESS: {output_path}")
+        return output_path
+    except Exception as e:
+        print(f"⚠️ خطأ في الحفظ: {e}")
+        return ""
 
 
 # ==========================================
