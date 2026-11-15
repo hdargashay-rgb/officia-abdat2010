@@ -458,7 +458,8 @@ def add_footer(doc, footer_text="Officia - الوكيل الذكي للمهام 
     footer_text_run.font.size = Pt(SIZES['footer'])
     footer_text_run.font.color.rgb = RGBColor.from_string(PALETTE['slate'])
     footer_text_run.font.italic = True
-    # ==========================================
+    
+# ==========================================
 # دوال Excel الاحترافية
 # ==========================================
 def create_excel_sheet(ws, headers, data, title=None,
@@ -940,7 +941,7 @@ def create_fixed_asset_report(
     
     return output_path
     
-    # ==========================================
+# ==========================================
 # دوال Excel متعددة الأغراض
 # ==========================================
 def create_multi_sheet_excel(
@@ -980,7 +981,7 @@ def create_multi_sheet_excel(
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
 
-    # ==========================================
+# ==========================================
 # دالة شاملة لإنشاء خطاب احترافي
 # ==========================================
 def generate_professional_letter(
@@ -1284,7 +1285,7 @@ def generate_professional_letter(
     
     filename = get_unique_filename(save_dir, filename, 'docx')
 
-    # ==========================================
+# ==========================================
 # 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي
 # ==========================================
 def generate_financial_report(
@@ -1468,7 +1469,7 @@ def generate_financial_report(
         # مسافة بين الأقسام
         current_row += 1
     
-  # ==========================================
+# ==========================================
 # إضافة معادلات Excel التلقائية (إن طُلب)
 # ==========================================
 if include_formulas and include_totals:
