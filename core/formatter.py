@@ -461,20 +461,138 @@ def add_footer(doc, footer_text="Officia - الوكيل الذكي للمهام 
     # ==========================================
 # دوال Excel الاحترافية
 # ==========================================
-def create_excel_sheet(ws, headers, data, title=None, 
+def create_excel_sheet(ws, headers, data, title=None,
                        start_row=1, freeze_row=True,
-                       auto_filter=True, table_style=True):
+                       auto_filter=True, table_style=True,
+                       columns=None, total=True, total_label="الإجمالي"):
     """
     إنشاء ورقة Excel منسقة باحترافية كاملة
     
-    تطبق: RTL، عناوين ملونة، حدود، auto-fit، تجميد، فلاتر
+    النمط القديم (للتوافق):
+        create_excel_sheet(ws, headers=['البند', 'القيمة'], data=[['مبيعات', 5000]])
+    
+    النمط الجديد (مع table_engine + صيغ ديناميكية):
+        from core.table_engine import col
+        cols = [
+            col("item", "البند", kind="text", width=25),
+            col("value", "القيمة", kind="number", total="sum", width=15)
+        ]
+        rows = [{"item": "مبيعات", "value": 5000}]
+        create_excel_sheet(ws, headers=None, data=rows, columns=cols, total=True)
+    
+    المعاملات الجديدة:
+        columns: قائمة مواصفات الأعمدة (من table_engine.col)
+        total: True لإضافة صف إجمالي بصيغة SUM ديناميكية
+        total_label: نص صف الإجمالي (الافتراضي: "الإجمالي")
     """
+    from core.table_engine import write_table, apply_widths
+    
     ws.sheet_view.rightToLeft = True
     ws.sheet_view.showGridLines = True
     
-    current_row = start_row
+    # ==========================================
+    # النمط الجديد: استخدام table_engine
+    # ==========================================
+    if columns is not None:
+        # الأنماط المطابقة للتنسيق القديم
+        styles = {
+            "header_fill": PatternFill(
+                start_color=PALETTE['royal_dark'],
+                end_color=PALETTE['royal_mid'],
+                fill_type='solid'
+            ),
+            "header_font": Font(
+                name=FONTS['heading'],
+                size=SIZES['body'],
+                bold=True,
+                color=PALETTE['white']
+            ),
+            "header_align": Alignment(
+                horizontal='center',
+                vertical='center',
+                wrap_text=True
+            ),
+            "header_border": Border(
+                left=Side(style='thin', color=PALETTE['silver']),
+                right=Side(style='thin', color=PALETTE['silver']),
+                top=Side(style='thin', color=PALETTE['silver']),
+                bottom=Side(style='medium', color=PALETTE['gold'])
+            ),
+            "data_font": Font(name=FONTS['body'], size=SIZES['body']),
+            "data_border": Border(
+                left=Side(style='thin', color=PALETTE['silver']),
+                right=Side(style='thin', color=PALETTE['silver']),
+                top=Side(style='thin', color=PALETTE['silver']),
+                bottom=Side(style='thin', color=PALETTE['silver'])
+            ),
+            "total_fill": PatternFill(
+                start_color=PALETTE['section_bg'],
+                end_color=PALETTE['section_bg'],
+                fill_type='solid'
+            ),
+            "total_font": Font(
+                name=FONTS['heading'],
+                size=SIZES['small'],
+                bold=True,
+                color=PALETTE['royal_dark']
+            ),
+        }
+        
+        current_row = start_row
+        
+        # إضافة عنوان إذا وجد
+        if title:
+            ws.merge_cells(
+                start_row=current_row, start_column=1,
+                end_row=current_row, end_column=len(columns)
+            )
+            title_cell = ws.cell(row=current_row, column=1, value=title)
+            title_cell.font = Font(
+                name=FONTS['title'],
+                size=SIZES['title'],
+                bold=True,
+                color=PALETTE['royal_dark']
+            )
+            title_cell.alignment = Alignment(horizontal='center', vertical='center')
+            title_cell.fill = PatternFill(
+                start_color=PALETTE['royal_pale'],
+                end_color=PALETTE['royal_pale'],
+                fill_type='solid'
+            )
+            ws.row_dimensions[current_row].height = 35
+            current_row += 2
+        
+        # رسم الجدول عبر table_engine (مع صف إجمالي ديناميكي)
+        info = write_table(
+            ws=ws,
+            columns=columns,
+            rows=data,
+            header_row=current_row,
+            styles=styles,
+            total=total,
+            total_label=total_label,
+            header_height=28
+        )
+        
+        # تطبيق عرض الأعمدة
+        apply_widths(ws, columns, first_col=1)
+        
+        # تجميد الصفوف
+        if freeze_row:
+            ws.freeze_panes = f'A{info["first_row"]}'
+        
+        # تفعيل الفلتر
+        if auto_filter and info['last_row'] >= info['first_row']:
+            last_col = get_column_letter(info['last_col'])
+            ws.auto_filter.ref = f'A{current_row}:{last_col}{info["last_row"]}'
+        
+        return info['first_row']
     
-    # العنوان
+    # ==========================================
+    # النمط القديم (للتوافق مع الكود الحالي)
+    # ==========================================
+    current_row = start_row
+
     if title:
         ws.merge_cells(
             start_row=current_row, start_column=1,
@@ -495,8 +613,7 @@ def create_excel_sheet(ws, headers, data, title=None,
         )
         ws.row_dimensions[current_row].height = 35
         current_row += 2
-    
-    # رؤوس الأعمدة
+
     header_fill = PatternFill(
         start_color=PALETTE['royal_dark'],
         end_color=PALETTE['royal_mid'],
@@ -513,14 +630,12 @@ def create_excel_sheet(ws, headers, data, title=None,
         vertical='center',
         wrap_text=True
     )
-    
     header_border = Border(
         left=Side(style='thin', color=PALETTE['silver']),
         right=Side(style='thin', color=PALETTE['silver']),
         top=Side(style='thin', color=PALETTE['silver']),
         bottom=Side(style='medium', color=PALETTE['gold'])
     )
-    
     header_row = current_row
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_num, value=header)
@@ -528,121 +643,58 @@ def create_excel_sheet(ws, headers, data, title=None,
         cell.font = header_font
         cell.alignment = header_alignment
         cell.border = header_border
-    
     ws.row_dimensions[header_row].height = 28
+
     data_start_row = header_row + 1
-    
-    # البيانات
+
     data_font = Font(name=FONTS['body'], size=SIZES['body'])
     data_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    
     even_fill = PatternFill(start_color=PALETTE['row_even'], end_color=PALETTE['row_even'], fill_type='solid')
     odd_fill = PatternFill(start_color=PALETTE['cream'], end_color=PALETTE['cream'], fill_type='solid')
-    
     data_border = Border(
         left=Side(style='thin', color=PALETTE['silver']),
         right=Side(style='thin', color=PALETTE['silver']),
         top=Side(style='thin', color=PALETTE['silver']),
         bottom=Side(style='thin', color=PALETTE['silver'])
     )
-    
+
     for row_idx, row_data in enumerate(data):
         for col_idx, cell_data in enumerate(row_data, 1):
             cell = ws.cell(row=data_start_row + row_idx, column=col_idx, value=cell_data)
             cell.font = data_font
             cell.alignment = data_alignment
             cell.border = data_border
-            
             cell.fill = even_fill if row_idx % 2 == 0 else odd_fill
-            
             if isinstance(cell_data, (int, float)):
                 cell.number_format = '#,##0.00'
-    
-    # auto-fit ذكي
+
     for col_num in range(1, len(headers) + 1):
         header_width = len(str(headers[col_num - 1])) * 2.2
         max_data_width = 0
-        
         for row in ws.iter_rows(
-            min_row=data_start_row, 
+            min_row=data_start_row,
             max_row=data_start_row + len(data) - 1,
-            min_col=col_num, 
+            min_col=col_num,
             max_col=col_num
         ):
             for cell in row:
                 if cell.value:
                     cell_width = len(str(cell.value)) * 1.5
                     max_data_width = max(max_data_width, cell_width)
-        
         final_width = max(header_width, max_data_width) + 4
         final_width = min(final_width, 50)
         final_width = max(final_width, 12)
-        
         ws.column_dimensions[get_column_letter(col_num)].width = final_width
-    
-    # تجميد
+
     if freeze_row:
         ws.freeze_panes = f'A{data_start_row}'
-    
-    # فلتر
+
     if auto_filter and len(data) > 0:
         last_row = data_start_row + len(data) - 1
         last_col = get_column_letter(len(headers))
         ws.auto_filter.ref = f'A{header_row}:{last_col}{last_row}'
-    
+
     return data_start_row
-
-
-def create_multi_sheet_excel(
-    sheets_config,
-    output_dir=None,
-    filename=None
-):
-    """
-    إنشاء ملف Excel متعدد الأوراق
-    
-    sheets_config: قائمة من القواميس:
-    - name: اسم الورقة
-    - title: عنوان الورقة (اختياري)
-    - headers: قائمة العناوين
-    - data: قائمة البيانات
-    """
-    from core.config import WORKSPACE_DIR
-    
-    wb = openpyxl.Workbook()
-    
-    for idx, sheet_cfg in enumerate(sheets_config):
-        if idx == 0:
-            ws = wb.active
-            ws.title = sheet_cfg['name'][:31]
-        else:
-            ws = wb.create_sheet(title=sheet_cfg['name'][:31])
-        
-        create_excel_sheet(
-            ws=ws,
-            headers=sheet_cfg['headers'],
-            data=sheet_cfg['data'],
-            title=sheet_cfg.get('title'),
-            freeze_row=True,
-            auto_filter=True
-        )
-    
-    save_dir = output_dir or WORKSPACE_DIR
-    os.makedirs(save_dir, exist_ok=True)
-    
-    if filename is None:
-        filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
-    
-    filename = get_unique_filename(save_dir, filename, 'xlsx')
-    output_path = os.path.join(save_dir, filename)
-    
-    wb.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
-    print("SUCCESS: " + output_path)
-    
-    return output_path
-
 
 def create_fixed_asset_report(
     company_name,
