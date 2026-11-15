@@ -1468,12 +1468,34 @@ def generate_financial_report(
         # مسافة بين الأقسام
         current_row += 1
     
-    # ==========================================
-    # إضافة معادلات Excel التلقائية (إن طُلب)
-    # ==========================================
-    if include_formulas and include_totals:
-        # يمكن إضافة معادلات SUM للأعمدة المالية هنا
-        pass
+  # ==========================================
+# إضافة معادلات Excel التلقائية (إن طُلب)
+# ==========================================
+if include_formulas and include_totals:
+    # إعادة حساب موقع كل قسم لإضافة صف إجمالي بصيغة SUM
+    current_row_for_total = 3
+    for sec_idx, section in enumerate(sections):
+        section_start = current_row_for_total + 2  # عنوان القسم + رؤوس الأعمدة
+        section_end = section_start + len(section['data']) - 1
+        
+        if section_end >= section_start:
+            total_row = section_end + 1
+            ws.cell(row=total_row, column=1, value="الإجمالي")
+            ws.cell(row=total_row, column=1).font = current_style['total_font']
+            ws.cell(row=total_row, column=1).fill = current_style['total_fill']
+            ws.cell(row=total_row, column=1).border = thin_border
+            
+            for col_idx in range(2, num_cols + 1):
+                col_letter = get_column_letter(col_idx)
+                formula = f"=SUM({col_letter}{section_start}:{col_letter}{section_end})"
+                cell = ws.cell(row=total_row, column=col_idx, value=formula)
+                cell.font = current_style['total_font']
+                cell.fill = current_style['total_fill']
+                cell.alignment = right_align
+                cell.border = thin_border
+                cell.number_format = '#,##0.00'
+        
+        current_row_for_total += 3 + len(section['data'])
     
     # ==========================================
     # تجميد الصفوف وتفعيل الفلاتر
