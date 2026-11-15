@@ -163,36 +163,75 @@ class Agent:
                     'code': clean_code
                 }
 
-    def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
-        routing = self._route_request(user_request)
-        routing_instruction = routing['instruction']
-        
-        if uploaded_file_path:
-            return f"""أنت وكيل ذكي متخصص في تحليل المستندات وإنشاء ملفات مشابهة.
+   def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
+    routing = self._route_request(user_request)
+    routing_instruction = routing['instruction']
+    target_function = routing.get('function', 'generate_financial_report')
+    
+    # ⛔ قائمة الدوال المسموحة فقط
+    ALLOWED_FUNCTIONS = """
+⛔ قائمة الدوال المسموحة حصراً (ممنوع استخدام أي دالة خارجها):
+  • generate_financial_report (لجميع التقارير المالية: قائمة الدخل، الميزانية، التدفقات)
+  • generate_styled_letter (للخطابات والمذكرات)
+  • generate_ats_cv (للسير الذاتية)
+  • create_fixed_asset_report (للأصول الثابتة)
+  • generate_trial_balance (لميزان المراجعة)
+  • generate_payroll_register (للرواتب)
+  • generate_depreciation_schedule (للإهلاك)
+  • convert_pdf_to_word / convert_pdf_to_excel (لتحويل PDF)
+  • replicate_document (لمحاكاة الملفات)
+  • format_analysis_report (لتحليل النماذج)
+  • create_excel_sheet / create_multi_sheet_excel (لجداول Excel عامة)
+"""
+    
+    # ⚠️ قاعدة إلزامية صارمة
+    STRICT_RULE = f"""
+⚠️⚠️⚠️ قاعدة إلزامية صارمة - مخالفتها تسبب فشل المهمة ⚠️⚠️⚠️
+1. الدالة المستهدفة لطلبك هي: **{target_function}**
+2. يجب استخدام هذه الدالة حصراً - ممنوع اختراع دوال جديدة
+3. ممنوع استدعاء: generate_balance_sheet, generate_income_statement, generate_cash_flow
+4. لجميع التقارير المالية استخدم: generate_financial_report(report_type='...')
+5. قيم report_type المسموحة: 'income_statement', 'balance_sheet', 'cash_flow', 'equity_statement'
+"""
+    
+    # 🎨 بروتوكول التنسيق الإلزامي
+    STYLE_PROTOCOL = """
+🎨 بروتوكول التنسيق الإلزامي (يجب تطبيقه في كل ملف Excel):
+  • عمود النصوص (البيان): عرض 45
+  • أعمدة الأرقام: عرض 20-22
+  • اللون الأزرق الغامق 1F4E79: للعناوين والرؤوس وصف الإجمالي
+  • اللون الأزرق الفاتح D6E4F0: للمجاميع الفرعية
+  • اللون الأبيض: لصفوف البيانات العادية
+  • تلوين متبادل للبيانات (أبيض / أزرق فاتح جداً E8F0F7)
+  • حدود مزدوجة (double border) تحت صف الإجمالي النهائي
+  • معادلات Excel حية (=SUM) لكل إجمالي
+  • اتجاه RTL للورقة
+  • تجميد الرؤوس (freeze_panes)
+"""
+    
+    if uploaded_file_path:
+        return f"""أنت وكيل ذكي متخصص في تحليل المستندات.
 
-📎 تم رفع ملف مرجعي: {uploaded_file_path}
-🎯 طلب المستخدم: {user_request}
+📎 ملف مرفوع: {uploaded_file_path}
+🎯 الطلب: {user_request}
+
+{STRICT_RULE}
+{ALLOWED_FUNCTIONS}
+{STYLE_PROTOCOL}
 
 {routing_instruction}
 
-⚠️ قاعدة إلزامية: استخدم الدوال المخصصة للملفات المرفوعة من core.formatter أو core.pdf_converter.
+⚠️ استخدم الدوال من core.formatter أو core.pdf_converter فقط.
 
-📚 الدوال المتاحة:
-1️⃣ لتحويل PDF إلى Word:
+📚 الدوال المتاحة للملفات المرفوعة:
 - convert_pdf_to_word(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
-
-2️⃣ لاستخراج جداول PDF إلى Excel:
 - convert_pdf_to_excel(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
-
-3️⃣ لمحاكاة ملف Word/Excel:
 - replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
-
-4️⃣ لتحليل نموذج Excel:
 - format_analysis_report(analysis_data, report_title, company_name, period, output_format='excel', style='accounting', output_dir='{WORKSPACE_DIR}')
 
-==========================================
+========================================
 📝 مثال 1: تحويل PDF إلى Word
-==========================================
+========================================
 ```python
 from core.pdf_converter import convert_pdf_to_word
 
@@ -203,9 +242,9 @@ output_path = convert_pdf_to_word(
 print("SUCCESS: " + output_path)
 ```
 
-==========================================
+========================================
 📝 مثال 2: استخراج جداول من PDF إلى Excel
-==========================================
+========================================
 ```python
 from core.pdf_converter import convert_pdf_to_excel
 
@@ -216,280 +255,84 @@ output_path = convert_pdf_to_excel(
 print("SUCCESS: " + output_path)
 ```
 
-==========================================
-📝 مثال 3: محاكاة ملف Word مرفوع
-==========================================
-```python
-from core.formatter import replicate_document
+اكتب الكود الكامل الآن.
+"""
+    
+    else:
+        return f"""أنت وكيل ذكي متخصص في إنشاء المستندات والتقارير.
 
-result = replicate_document(
-    source_file='{uploaded_file_path}',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + result['output_path'])
-```
+🎯 الطلب: {user_request}
 
-==========================================
-📝 مثال 4: تحليل نموذج Excel
-==========================================
-```python
-from core.formatter import format_analysis_report
+{STRICT_RULE}
+{ALLOWED_FUNCTIONS}
+{STYLE_PROTOCOL}
 
-result = format_analysis_report(
-    analysis_data={{}},
-    report_title="تقرير",
-    company_name="شركة",
-    period="2026",
-    output_format='excel',
-    style='accounting',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + result['output_path'])
-```
-
-⚠️ تحذير: ممنوع اختراع دوال. ابدأ بـ ```python وانهِ بـ ```"""
-
-        if not routing['found']:
-            return f"""أنت مبرمج Python خبير متخصص في إنشاء مستندات احترافية بمعايير محاسبية وإدارية عالية.
-🎯 طلب المستخدم: {user_request}
-⚠️ لا توجد دالة مخصصة جاهزة لهذا الطلب في مكتبة core.formatter.
-✅ الحل: اكتب كود Python كامل من الصفر لتنفيذ هذا الطلب بمعايير احترافية صارمة.
-
-==========================================
-🎨 بروتوكول التنسيق الاحترافي (إلزامي):
-==========================================
-📊 للملفات Excel (openpyxl):
-1. استخدم أنماط احترافية: header_fill (لون 1F4E79), header_font (Arial, 12, bold, white), data_font (Arial, 10).
-2. أضف عنواناً رئيسياً مدمجاً في الصف الأول، ورؤوس أعمدة ملونة في الصف الثاني.
-3. استخدم تنسيق الأرقام: '#,##0.00' للأعمدة المالية.
-4. أضف صف "إجمالي" في النهاية بخط عريض.
-5. فعّل: ws.sheet_view.rightToLeft = True و ws.freeze_panes = 'A3' و ws.auto_filter.
-6. اضبط عرض الأعمدة بشكل مناسب.
-
-📄 للملفات Word (python-docx):
-1. أضف عنواناً رئيسياً بخط كبير وعريض ومحاذاة وسط.
-2. استخدم جداول منسقة (Table) للبيانات مع حدود واضحة.
-3. أضف تذييل (Footer) يحتوي على التوقيع والتاريخ.
-
-📁 الحفظ والطباعة:
-- احفظ الملف في: {WORKSPACE_DIR}
-- اطبع مسار الملف بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
-
-==========================================
-الآن نفذ الطلب: {user_request}
-اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
-
-        function_prompts = {
-            'generate_styled_letter': f"""أنت كاتب محترف متخصص في إنشاء الخطابات الرسمية.
 {routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_styled_letter فقط.
-📚 الدالة: generate_styled_letter(organization_name, title, recipient, subject, paragraphs, table_headers, table_data, table_caption, header_style, content_style, table_style, footer_style, signature_style, signatures, output_dir)
 
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_styled_letter
-output_path = generate_styled_letter(
-    organization_name="شركة ردينت", title="مطالبة", recipient="السيد أحمد", subject="مطالبة",
-    paragraphs=["نرجو السداد"], table_headers=["الشهر", "القيمة"], table_data=[["يوليو", "30000"]],
-    header_style='official', content_style='paragraphs', table_style='royal_blue',
-    footer_style='professional', signature_style='single',
-    signatures=[{{'name': 'المحامي عبدالله', 'title': 'المستشار'}}],
-    output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات.
-- ممنوع استخدام from docx import Document مباشرة.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
+📚 أمثلة على الاستخدام الصحيح:
 
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_ats_cv': f"""أنت متخصص في إنشاء السير الذاتية المتوافقة مع ATS.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_ats_cv فقط.
-📚 الدالة: generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, languages, certifications, projects, interests, objective, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_ats_cv
-output_path = generate_ats_cv(
-    full_name="أحمد محمد", phone="+966500000000", email="a@a.com", location="الرياض", linkedin="linkedin.com/in/a",
-    objective="مدير مالي", summary="خبير محاسبة",
-    experience=[{{'role': 'مدير', 'company': 'ردينت', 'date': '2020-الحاضر', 'responsibilities': ['إدارة الفريق']}}],
-    education=[{{'degree': 'بكالوريوس محاسبة', 'university': 'جامعة الملك سعود', 'year': '2014'}}],
-    skills=['إدارة الحسابات', 'Excel'], languages=[{{'name': 'العربية', 'level': 'اللغة الأم'}}],
-    certifications=[{{'name': 'CPA', 'issuer': 'الهيئة السعودية', 'year': '2019'}}],
-    projects=[{{'name': 'تطوير النظام', 'date': '2022', 'description': 'تقليل الأخطاء'}}],
-    interests=['القراءة'], output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- اكتب محتوى شاملاً وأضف دائماً: languages, certifications, projects, interests.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_financial_report': f"""أنت محاسب خبير متخصص في إنشاء التقارير المالية.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_financial_report فقط.
-📚 الدالة: generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
-
-==========================================
-📝 مثال:
+========================================
+📝 مثال 1: قائمة الدخل
+========================================
 ```python
 from core.formatter import generate_financial_report
-sections_data = [{{'title': 'الإيرادات', 'headers': ['البند', 'القيمة'], 'data': [['المبيعات', 500000], {{'is_subtotal': True}}]}}]
-output_path = generate_financial_report(
-    report_type="income_statement", company_name="شركة ردينت", period="2026", sections=sections_data,
-    currency="ريال", include_totals=True, include_formulas=True, style="accounting", output_dir="{WORKSPACE_DIR}"
+
+result = generate_financial_report(
+    report_type='income_statement',
+    company_name='شركة ردينت',
+    period='2026',
+    sections=[
+        {{'title': 'الإيرادات', 'headers': ['البيان', 'المبلغ'], 'data': [['مبيعات', 5000000], ['خدمات', 2000000]]}},
+        {{'title': 'المصروفات', 'headers': ['البيان', 'المبلغ'], 'data': [['رواتب', 1500000], ['إيجارات', 300000]]}}
+    ]
 )
-print("SUCCESS: " + output_path)
+print("SUCCESS: " + result)
 ```
-⚠️ تحذيرات صارمة:
-- sections يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'create_fixed_asset_report': f"""أنت محاسب خبير متخصص في إنشاء تقارير الأصول الثابتة.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة create_fixed_asset_report فقط.
-📚 الدالة: create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
-
-==========================================
-📝 مثال:
+========================================
+📝 مثال 2: الميزانية العمومية
+========================================
 ```python
-from core.formatter import create_fixed_asset_report
-sections_data = [{{'sheet_name': 'المركبات', 'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'], 'data': [['V-001', 'هايلكس', 185000, 37000, 148000]]}}]
-assets_data = [{{'asset_id': 'V-001', 'description': 'هايلكس', 'category': 'المركبات', 'cost': 185000, 'accumulated_dep_start': 37000}}]
-output_path = create_fixed_asset_report(
-    company_name="شركة ردينت", year="2026", sections=sections_data, assets=assets_data,
-    include_depreciation_schedule=True, output_dir="{WORKSPACE_DIR}"
+from core.formatter import generate_financial_report
+
+result = generate_financial_report(
+    report_type='balance_sheet',
+    company_name='شركة ردينت',
+    period='2026',
+    sections=[
+        {{'title': 'الأصول المتداولة', 'headers': ['البيان', 'المبلغ'], 'data': [['نقدية', 1500000], ['مخزون', 800000]]}},
+        {{'title': 'الخصوم', 'headers': ['البيان', 'المبلغ'], 'data': [['دائنون', 900000], ['قروض', 2000000]]}}
+    ]
 )
-print("SUCCESS: " + output_path)
+print("SUCCESS: " + result)
 ```
-⚠️ تحذيرات صارمة:
-- استخدم هذه الدالة لدمج كل الأوراق في ملف Excel واحد.
-- sections و assets يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_depreciation_schedule': f"""أنت محاسب خبير متخصص في إنشاء جداول الإهلاك.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_depreciation_schedule فقط.
-📚 الدالة: generate_depreciation_schedule(company_name, year, assets, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_depreciation_schedule
-assets_data = [{{'asset_id': 'V-001', 'description': 'هايلكس', 'cost': 185000, 'accumulated_dep_start': 37000, 'depreciation_rate': 33.33, 'salvage_value': 0}}]
-output_path = generate_depreciation_schedule(
-    company_name="شركة ردينت", year="2026", assets=assets_data, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- assets يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_trial_balance': f"""أنت محاسب خبير متخصص في إنشاء ميزان المراجعة.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_trial_balance فقط.
-📚 الدالة: generate_trial_balance(company_name, period, accounts, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_trial_balance
-accounts_data = [
-    {{'account_number': '1101', 'account_name': 'الصندوق', 'opening_debit': 50000, 'opening_credit': 0, 'debit_movement': 120000, 'credit_movement': 95000}},
-    {{'account_number': '2101', 'account_name': 'الموردون', 'opening_debit': 0, 'opening_credit': 140000, 'debit_movement': 100000, 'credit_movement': 130000}}
-]
-output_path = generate_trial_balance(
-    company_name="شركة ردينت", period="2026", accounts=accounts_data, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- accounts يجب أن تكون LIST من DICTS، وليست string أبداً!
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_payroll_register': f"""أنت محاسب خبير متخصص في إنشاء كشوف الرواتب.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_payroll_register فقط.
-📚 الدالة: generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
-
-==========================================
-📝 مثال:
+========================================
+📝 مثال 3: كشف رواتب
+========================================
 ```python
 from core.formatter import generate_payroll_register
-employees_data = [
-    {{'employee_id': 'EMP001', 'employee_name': 'أحمد محمد', 'department': 'إداري', 'basic_salary': 8000, 'housing_allowance': 2000, 'transport_allowance': 500, 'other_allowances': 0, 'gross_pay': 10500, 'insurance_deductions': 525, 'other_deductions': 0, 'net_pay': 9975, 'payment_date': '2026-01-31'}},
-    {{'employee_id': 'EMP002', 'employee_name': 'خالد علي', 'department': 'تشغيلي', 'basic_salary': 5000, 'housing_allowance': 1250, 'transport_allowance': 300, 'other_allowances': 200, 'gross_pay': 6750, 'insurance_deductions': 337.5, 'other_deductions': 50, 'net_pay': 6362.5, 'payment_date': '2026-01-31'}}
-]
-output_path = generate_payroll_register(
-    company_name="شركة ردينت", period="يناير 2026", employees=employees_data,
-    include_signature_slips=True, output_dir="{WORKSPACE_DIR}"
+
+result = generate_payroll_register(
+    employees=[...],
+    period='2026-01'
 )
-print("SUCCESS: " + output_path)
+print("SUCCESS: " + result)
 ```
-⚠️ تحذيرات صارمة وحاسمة:
-- هذه الدالة تنشئ ملف Excel متعدد الأوراق، ممنوع استخدام generate_styled_letter (Word) لكشف الرواتب أبداً!
-- employees يجب أن تكون LIST من DICTS (أقواس معقوفة {{}} داخل أقواس مربعة [])، وليست string أبداً!
-- ممنوع اختراع دوال غير موجودة.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
 
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```"""
-        }
-        
-        function_name = routing['function']
-        if function_name and function_name in function_prompts:
-            return function_prompts[function_name]
-        
-        return f"""أنت مبرمج Python خبير.
-🎯 طلب المستخدم: {user_request}
-{routing_instruction}
-اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
-
-    def _build_fix_prompt(self, original_request: str, previous_code: str, error: str) -> str:
-        return f"""❌ الكود السابق فشل.
-الطلب: {original_request}
-الكود الذي فشل:
+========================================
+🚫 أمثلة خاطئة (ممنوعة تماماً):
+========================================
 ```python
-{previous_code}
+# ❌ generate_balance_sheet(...) - دالة غير موجودة
+# ❌ generate_income_statement(...) - دالة غير موجودة
+# ❌ from core.formatter import generate_balance_sheet - استيراد خاطئ
 ```
-الخطأ: {error}
-==========================================
-تعليمات التصحيح:
-1. استخدم الدالة المناسبة من core.formatter
-2. تأكد من تمرير جميع المعاملات المطلوبة
-3. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
 
-أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
+⚠️ تذكير أخير: استخدم **{target_function}** حصراً.
+
+اكتب الكود الكامل الآن.
+"""
 
     def _extract_code(self, response: str) -> str:
         if '```python' in response:
