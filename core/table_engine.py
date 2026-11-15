@@ -29,16 +29,28 @@ _TOKEN = re.compile(r"\{([^{}]+)\}")
 NUM_FMT = "#,##0.00"
 _FMT_BY_KIND = {"number": NUM_FMT, "formula": NUM_FMT, "percent": "0.0%", "points": '0.00"%"'}
 
+# ==========================================
+# 🎨 نمط Daftra الاحترافي (موحد لكل الجداول)
+# ==========================================
 _THIN = Side(style="thin", color="B4C7E7")
+_MEDIUM = Side(style="medium", color="1F4E79")
+
 DEFAULT_STYLES = {
+    # رأس الجدول
     "header_fill": PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
     "header_font": Font(name="Arial", size=11, bold=True, color="FFFFFF"),
     "header_align": Alignment(horizontal="center", vertical="center", wrap_text=True),
-    "header_border": Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN),
-    "data_font": Font(name="Arial", size=10),
+    "header_border": Border(left=_THIN, right=_THIN, top=_THIN, bottom=_MEDIUM),
+    
+    # بيانات عادية (تلوين متبادل)
+    "data_font": Font(name="Arial", size=10, color="000000"),
+    "data_fill_even": PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid"),
+    "data_fill_odd": PatternFill(start_color="E8F0F7", end_color="E8F0F7", fill_type="solid"),
     "data_border": Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN),
-    "total_fill": PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid"),
-    "total_font": Font(name="Arial", size=11, bold=True, color="1F4E79"),
+    
+    # صف الإجمالي (أزرق داكن + نص أبيض عريض)
+    "total_fill": PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
+    "total_font": Font(name="Arial", size=11, bold=True, color="FFFFFF"),
     "total_border": Border(left=_THIN, right=_THIN, top=_THIN,
                            bottom=Side(style="double", color="1F4E79")),
 }
@@ -57,6 +69,16 @@ def col(key, title, kind="number", **kw):
     d.update(kw)
     if "formula" in d:
         d["kind"] = "formula"
+    
+    # ✅ العرض الافتراضي حسب النوع (نصوص عريضة، أرقام عادية)
+    if "width" not in d:
+        if kind == "text":
+            d["width"] = 45
+        elif kind in ("number", "formula", "percent", "points"):
+            d["width"] = 20
+        else:
+            d["width"] = 16
+            
     return d
 
 
@@ -235,12 +257,20 @@ def write_table(ws, columns, rows, header_row, first_col=1, styles=None, total=T
                 cell.value = "" if v is None else v
             else:
                 cell.value = _num(row.get(c["key"]))
+            
             cell.font = c.get("font") or (Font(name="Arial", size=10, bold=True) if c.get("bold")
                                           else st["data_font"])
-            default_align = "right" if kind in ("number", "formula", "percent", "points") else "center"
+            
+            # ✅ محاذاة النصوص يمين، والأرقام وسط/يمين
+            default_align = "right" if kind == "text" else "center"
             cell.alignment = Alignment(horizontal=c.get("align", default_align),
                                        vertical="center", wrap_text=True)
+            
             cell.border = st["data_border"]
+            
+            # ✅ تلوين متبادل للصفوف
+            cell.fill = st["data_fill_even"] if n % 2 == 0 else st["data_fill_odd"]
+            
             if kind in _FMT_BY_KIND:
                 cell.number_format = c.get("fmt", _FMT_BY_KIND[kind])
         if row_height:
@@ -271,6 +301,9 @@ def write_table(ws, columns, rows, header_row, first_col=1, styles=None, total=T
                            end_row=total_row, end_column=first_col + label_span - 1)
         if row_height:
             ws.row_dimensions[total_row].height = row_height + 5
+
+    # ✅ تطبيق عرض الأعمدة تلقائياً لضمان ظهور النصوص عريضة والأرقام عادية
+    apply_widths(ws, columns, first_col)
 
     return {"first_row": first, "last_row": last, "total_row": total_row, "letters": letters,
             "warnings": list(dict.fromkeys(warns)), "last_col": first_col + len(columns) - 1}
