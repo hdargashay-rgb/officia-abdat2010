@@ -1529,16 +1529,7 @@ if include_formulas and include_totals:
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
     
-    return output_path
-    
-    output_path = os.path.join(save_dir, filename)
-    
-    doc.save(output_path)
 
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
-    print("SUCCESS: " + output_path)
-    
-    return output_path
 
 # ==========================================
 # 📝 دالة إنشاء خطاب بأنماط ديناميكية
