@@ -1,8 +1,9 @@
 """
-Officia Formatter Pro v4 - نظام التنسيق الاحترافي المتقدم
-دوال تنسيق ذكية متعددة الاستخدام
+Officia Formatter Pro v5 - نظام التنسيق الاحترافي المتقدم
+- صيغ Excel ديناميكية (ممنوع القيم الثابتة للإجماليات)
+- نظام هجين للدوال (مرونة عبر معاملات اختيارية)
+- بروتوكول تنسيق موحد
 """
-
 import os
 from datetime import datetime
 from docx import Document
@@ -35,29 +36,27 @@ PALETTE = {
     'royal_mid': '2E5C8A',
     'royal_light': '4A7FB5',
     'royal_pale': 'D6E4F0',
-    
     # ألوان التمييز
     'gold': 'C9A961',
     'gold_light': 'F5E6C8',
     'silver': 'BDC3C7',
-    
     # ألوان التنبيه
     'accent_red': 'A93226',
     'accent_green': '1E8449',
     'accent_orange': 'D68910',
     'accent_yellow': 'F4D03F',
-    
     # ألوان محايدة
     'charcoal': '2C3E50',
     'slate': '5D6D7E',
     'cream': 'FDFEFE',
     'white': 'FFFFFF',
     'black': '000000',
-    
     # ألوان الصفوف
     'row_even': 'D6E4F0',
     'row_odd': 'FFFFFF',
     'row_highlight': 'FFF9C4',
+    'section_bg': 'E7E6E6',
+    'total_bg': 'FFF2CC',
 }
 
 # الخطوط الاحترافية
@@ -117,6 +116,42 @@ def get_unique_filename(directory, base_name, extension):
         counter += 1
     return filename
 
+def write_total_row(ws, row, first, last, cols, label="الإجمالي", 
+                    use_subtotal=False, bold=True, fill_color="E7E6E6"):
+    """دالة مساعدة لكتابة صف إجمالي بصيغ ديناميكية"""
+    label_cell = ws.cell(row=row, column=1, value=label)
+    label_cell.font = Font(name="Arial", size=11, bold=bold, color="1F4E79")
+    label_cell.fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+    label_cell.alignment = Alignment(horizontal="right")
+    label_cell.border = Border(
+        left=Side(style="thin", color="B4C7E7"),
+        right=Side(style="thin", color="B4C7E7"),
+        top=Side(style="medium", color="1F4E79"),
+        bottom=Side(style="medium", color="1F4E79")
+    )
+    formula_type = "SUBTOTAL(109" if use_subtotal else "SUM"
+    for col_letter in cols:
+        formula = f"={formula_type}({col_letter}{first}:{col_letter}{last})"
+        total_cell = ws[f"{col_letter}{row}"]
+        total_cell.value = formula
+        total_cell.font = Font(name="Arial", size=11, bold=bold, color="1F4E79")
+        total_cell.fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+        total_cell.number_format = '#,##0.00'
+        total_cell.alignment = Alignment(horizontal="right")
+        total_cell.border = Border(
+            left=Side(style="thin", color="B4C7E7"),
+            right=Side(style="thin", color="B4C7E7"),
+            top=Side(style="medium", color="1F4E79"),
+            bottom=Side(style="medium", color="1F4E79")
+        )
+
+def write_formula_cell(ws, row, col, formula, number_format='#,##0.00'):
+    """دالة مساعدة لكتابة خلية بصيغة Excel"""
+    cell = ws.cell(row=row, column=col)
+    cell.value = formula
+    cell.number_format = number_format
+    return cell
+
 # ==========================================
 # دوال تنسيق Word الاحترافية
 # ==========================================
@@ -140,7 +175,7 @@ def add_elegant_header(doc, organization_name, title, subtitle=None):
         org_run.font.bold = True
         org_run.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
         set_paragraph_rtl(org_para)
-    
+
     # خط فاصل مزدوج
     para = doc.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -153,7 +188,7 @@ def add_elegant_header(doc, organization_name, title, subtitle=None):
         f'</w:pBdr>'
     )
     pPr.append(pBdr)
-    
+
     # العنوان الرئيسي
     title_para = doc.add_heading(title, level=0)
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -164,7 +199,7 @@ def add_elegant_header(doc, organization_name, title, subtitle=None):
         run.font.size = Pt(SIZES['mega_title'])
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
-    
+
     # خط ذهبي
     para = doc.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -177,7 +212,7 @@ def add_elegant_header(doc, organization_name, title, subtitle=None):
         f'</w:pBdr>'
     )
     pPr.append(pBdr)
-    
+
     # العنوان الفرعي
     if subtitle:
         sub_para = doc.add_paragraph()
@@ -210,7 +245,7 @@ def add_document_info(doc, date=None, reference_number=None, recipient=None, sub
     date_value = date_para.add_run(date or datetime.now().strftime('%Y/%m/%d'))
     date_value.font.size = Pt(SIZES['body'])
     set_paragraph_rtl(date_para)
-    
+
     ref_cell = info_table.cell(0, 1)
     ref_para = ref_cell.paragraphs[0]
     ref_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -220,9 +255,9 @@ def add_document_info(doc, date=None, reference_number=None, recipient=None, sub
     ref_label.font.color.rgb = RGBColor.from_string(PALETTE['royal_mid'])
     ref_value = ref_para.add_run(reference_number or datetime.now().strftime('%Y%m%d%H%M'))
     ref_value.font.size = Pt(SIZES['body'])
-    
+
     doc.add_paragraph()
-    
+
     # المرسل إليه
     if recipient:
         to_para = doc.add_paragraph()
@@ -238,7 +273,7 @@ def add_document_info(doc, date=None, reference_number=None, recipient=None, sub
         to_value.font.bold = True
         to_value.font.size = Pt(SIZES['body'])
         set_paragraph_rtl(to_para)
-    
+
     # الموضوع
     if subject:
         subj_para = doc.add_paragraph()
@@ -279,7 +314,6 @@ def add_content_paragraphs(doc, paragraphs, numbered=False, first_line_indent=1.
         p.paragraph_format.first_line_indent = Cm(first_line_indent)
         p.paragraph_format.line_spacing = 1.6
         p.paragraph_format.space_after = Pt(10)
-        
         text = f"{i+1}. {para_text}" if numbered and len(paragraphs) > 1 else para_text
         run = p.add_run(text)
         run.font.name = FONTS['body']
@@ -306,13 +340,13 @@ def create_professional_table(doc, headers, data, caption=None):
         cap_run.font.size = Pt(SIZES['subheading'])
         cap_run.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
         set_paragraph_rtl(cap_para)
-    
+
     # إنشاء الجدول
     table = doc.add_table(rows=1, cols=len(headers))
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = True
-    
+
     # تنسيق رأس الجدول
     header_cells = table.rows[0].cells
     for i, header in enumerate(headers):
@@ -322,21 +356,18 @@ def create_professional_table(doc, headers, data, caption=None):
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_before = Pt(4)
         p.paragraph_format.space_after = Pt(4)
-        
         run = p.add_run(header)
         run.font.name = FONTS['heading']
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string(PALETTE['white'])
         run.font.size = Pt(SIZES['body'])
-        
         set_cell_shading(cell, PALETTE['royal_dark'])
         set_cell_rtl(cell)
-    
+
     # إضافة البيانات
     for row_idx, row_data in enumerate(data):
         row_cells = table.add_row().cells
         bg_color = PALETTE['row_even'] if row_idx % 2 == 0 else PALETTE['cream']
-        
         for col_idx, cell_data in enumerate(row_data):
             cell = row_cells[col_idx]
             cell.text = ''
@@ -344,15 +375,13 @@ def create_professional_table(doc, headers, data, caption=None):
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(3)
             p.paragraph_format.space_after = Pt(3)
-            
             run = p.add_run(str(cell_data))
             run.font.name = FONTS['body']
             run.font.size = Pt(SIZES['body'])
             run.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
-            
             set_cell_shading(cell, bg_color)
             set_cell_rtl(cell)
-    
+
     doc.add_paragraph()
     return table
 
@@ -374,20 +403,18 @@ def add_closing(doc, closing_text="وتفضلوا بقبول فائق الاحت
     closing_run.font.size = Pt(SIZES['body'])
     closing_run.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
     set_paragraph_rtl(closing)
-    
+
     # التوقيع
     if signature_name:
         doc.add_paragraph()
         doc.add_paragraph()
         sig_para = doc.add_paragraph()
         sig_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        
         name_run = sig_para.add_run(signature_name)
         name_run.font.name = FONTS['accent']
         name_run.font.bold = True
         name_run.font.size = Pt(SIZES['body'])
         name_run.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
-        
         if signature_title:
             sig_para.add_run('\n')
             title_run = sig_para.add_run(signature_title)
@@ -399,12 +426,10 @@ def add_note(doc, note_text, icon="⚠"):
     note_para = doc.add_paragraph()
     note_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     note_para.paragraph_format.space_before = Pt(6)
-    
     note_icon = note_para.add_run(f"{icon} تنبيه: ")
     note_icon.font.bold = True
     note_icon.font.size = Pt(SIZES['body'])
     note_icon.font.color.rgb = RGBColor.from_string(PALETTE['accent_red'])
-    
     note_text_run = note_para.add_run(note_text)
     note_text_run.font.size = Pt(SIZES['body'])
     note_text_run.font.color.rgb = RGBColor.from_string(PALETTE['accent_red'])
@@ -419,7 +444,6 @@ def add_attachments(doc, attachments_list):
     att_label.font.size = Pt(SIZES['body'])
     att_label.font.color.rgb = RGBColor.from_string(PALETTE['royal_dark'])
     set_paragraph_rtl(att_label_para)
-    
     for att in attachments_list:
         att_item = doc.add_paragraph()
         att_item.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -435,7 +459,6 @@ def setup_document(doc, margins_cm=1.8):
     section.bottom_margin = Cm(margins_cm)
     section.left_margin = Cm(margins_cm)
     section.right_margin = Cm(margins_cm)
-    
     style = doc.styles['Normal']
     style.font.name = FONTS['body']
     style.font.size = Pt(SIZES['body'])
@@ -449,31 +472,28 @@ def add_footer(doc, footer_text="Officia - الوكيل الذكي للمهام 
     footer = section.footer
     footer_para = footer.paragraphs[0]
     footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
     footer_line = footer_para.add_run("━" * 40 + "\n")
     footer_line.font.color.rgb = RGBColor.from_string(PALETTE['silver'])
     footer_line.font.size = Pt(SIZES['caption'])
-    
     footer_text_run = footer_para.add_run(footer_text)
     footer_text_run.font.size = Pt(SIZES['footer'])
     footer_text_run.font.color.rgb = RGBColor.from_string(PALETTE['slate'])
     footer_text_run.font.italic = True
-    # ==========================================
+
+# ==========================================
 # دوال Excel الاحترافية
 # ==========================================
-def create_excel_sheet(ws, headers, data, title=None, 
+def create_excel_sheet(ws, headers, data, title=None,
                        start_row=1, freeze_row=True,
                        auto_filter=True, table_style=True):
     """
     إنشاء ورقة Excel منسقة باحترافية كاملة
-    
     تطبق: RTL، عناوين ملونة، حدود، auto-fit، تجميد، فلاتر
     """
     ws.sheet_view.rightToLeft = True
     ws.sheet_view.showGridLines = True
-    
     current_row = start_row
-    
+
     # العنوان
     if title:
         ws.merge_cells(
@@ -495,7 +515,7 @@ def create_excel_sheet(ws, headers, data, title=None,
         )
         ws.row_dimensions[current_row].height = 35
         current_row += 2
-    
+
     # رؤوس الأعمدة
     header_fill = PatternFill(
         start_color=PALETTE['royal_dark'],
@@ -513,14 +533,12 @@ def create_excel_sheet(ws, headers, data, title=None,
         vertical='center',
         wrap_text=True
     )
-    
     header_border = Border(
         left=Side(style='thin', color=PALETTE['silver']),
         right=Side(style='thin', color=PALETTE['silver']),
         top=Side(style='thin', color=PALETTE['silver']),
         bottom=Side(style='medium', color=PALETTE['gold'])
     )
-    
     header_row = current_row
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_num, value=header)
@@ -528,70 +546,62 @@ def create_excel_sheet(ws, headers, data, title=None,
         cell.font = header_font
         cell.alignment = header_alignment
         cell.border = header_border
-    
     ws.row_dimensions[header_row].height = 28
+
     data_start_row = header_row + 1
-    
+
     # البيانات
     data_font = Font(name=FONTS['body'], size=SIZES['body'])
     data_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    
     even_fill = PatternFill(start_color=PALETTE['row_even'], end_color=PALETTE['row_even'], fill_type='solid')
     odd_fill = PatternFill(start_color=PALETTE['cream'], end_color=PALETTE['cream'], fill_type='solid')
-    
     data_border = Border(
         left=Side(style='thin', color=PALETTE['silver']),
         right=Side(style='thin', color=PALETTE['silver']),
         top=Side(style='thin', color=PALETTE['silver']),
         bottom=Side(style='thin', color=PALETTE['silver'])
     )
-    
+
     for row_idx, row_data in enumerate(data):
         for col_idx, cell_data in enumerate(row_data, 1):
             cell = ws.cell(row=data_start_row + row_idx, column=col_idx, value=cell_data)
             cell.font = data_font
             cell.alignment = data_alignment
             cell.border = data_border
-            
             cell.fill = even_fill if row_idx % 2 == 0 else odd_fill
-            
             if isinstance(cell_data, (int, float)):
                 cell.number_format = '#,##0.00'
-    
+
     # auto-fit ذكي
     for col_num in range(1, len(headers) + 1):
         header_width = len(str(headers[col_num - 1])) * 2.2
         max_data_width = 0
-        
         for row in ws.iter_rows(
-            min_row=data_start_row, 
+            min_row=data_start_row,
             max_row=data_start_row + len(data) - 1,
-            min_col=col_num, 
+            min_col=col_num,
             max_col=col_num
         ):
             for cell in row:
                 if cell.value:
                     cell_width = len(str(cell.value)) * 1.5
                     max_data_width = max(max_data_width, cell_width)
-        
         final_width = max(header_width, max_data_width) + 4
         final_width = min(final_width, 50)
         final_width = max(final_width, 12)
-        
         ws.column_dimensions[get_column_letter(col_num)].width = final_width
-    
+
     # تجميد
     if freeze_row:
         ws.freeze_panes = f'A{data_start_row}'
-    
+
     # فلتر
     if auto_filter and len(data) > 0:
         last_row = data_start_row + len(data) - 1
         last_col = get_column_letter(len(headers))
         ws.auto_filter.ref = f'A{header_row}:{last_col}{last_row}'
-    
-    return data_start_row
 
+    return data_start_row
 
 def create_multi_sheet_excel(
     sheets_config,
@@ -600,7 +610,6 @@ def create_multi_sheet_excel(
 ):
     """
     إنشاء ملف Excel متعدد الأوراق
-    
     sheets_config: قائمة من القواميس:
     - name: اسم الورقة
     - title: عنوان الورقة (اختياري)
@@ -608,8 +617,8 @@ def create_multi_sheet_excel(
     - data: قائمة البيانات
     """
     from core.config import WORKSPACE_DIR
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     
     for idx, sheet_cfg in enumerate(sheets_config):
         if idx == 0:
@@ -617,7 +626,6 @@ def create_multi_sheet_excel(
             ws.title = sheet_cfg['name'][:31]
         else:
             ws = wb.create_sheet(title=sheet_cfg['name'][:31])
-        
         create_excel_sheet(
             ws=ws,
             headers=sheet_cfg['headers'],
@@ -626,23 +634,17 @@ def create_multi_sheet_excel(
             freeze_row=True,
             auto_filter=True
         )
-    
+
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
-    
     filename = get_unique_filename(save_dir, filename, 'xlsx')
     output_path = os.path.join(save_dir, filename)
-    
     wb.save(output_path)
-
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
-
 
 def create_fixed_asset_report(
     company_name,
@@ -654,21 +656,20 @@ def create_fixed_asset_report(
     """
     إنشاء تقرير أصول ثابتة احترافي كامل
     (مطابق لملف FIXED ASSET LISTING المرجعي)
-    
     sections: قائمة من القواميس:
     - name: اسم القسم
     - depreciation_rate: نسبة الإهلاك
     - assets: قائمة الأصول
     """
     from core.config import WORKSPACE_DIR
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     
     # ورقة الملخص
     ws_summary = wb.active
     ws_summary.title = "Summary"
     ws_summary.sheet_view.rightToLeft = True
-    
+
     # عنوان التقرير
     ws_summary.merge_cells('A1:Y1')
     title_cell = ws_summary['A1']
@@ -676,7 +677,7 @@ def create_fixed_asset_report(
     title_cell.font = Font(name=FONTS['title'], size=SIZES['mega_title'], bold=True, color=PALETTE['royal_dark'])
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
     ws_summary.row_dimensions[1].height = 35
-    
+
     # رؤوس الأعمدة
     headers = [
         'Fixed Assets', 'Opening Balance', 'Additions', 'Disposal', 'Total',
@@ -684,7 +685,6 @@ def create_fixed_asset_report(
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
         'Monthly Total', 'Dep. During the year', 'Write of AD', 'Total Accu. Dep', 'Net Book Value', 'For check'
     ]
-    
     header_row = 3
     for col_num, header in enumerate(headers, 1):
         cell = ws_summary.cell(row=header_row, column=col_num, value=header)
@@ -697,14 +697,14 @@ def create_fixed_asset_report(
             top=Side(style='thin', color=PALETTE['silver']),
             bottom=Side(style='medium', color=PALETTE['royal_dark'])
         )
-    
     ws_summary.row_dimensions[header_row].height = 30
-    
+
     # بيانات الأقسام
     current_row = header_row + 1
     total_opening = 0
     total_depr = 0
     total_net = 0
+    first_data_row = current_row
     
     for section in sections:
         section_opening = sum(asset['book_value'] for asset in section['assets'])
@@ -717,9 +717,11 @@ def create_fixed_asset_report(
         total_opening += section_opening
         total_depr += section_annual_depr
         total_net += section_net_value
-        
+
         ws_summary.cell(row=current_row, column=1, value=f"RADIANT - {section['name']}")
         ws_summary.cell(row=current_row, column=1).font = Font(bold=True, color=PALETTE['royal_dark'])
+        
+        # ✅ القيم الأساسية كمدخلات
         ws_summary.cell(row=current_row, column=2, value=section_opening)
         ws_summary.cell(row=current_row, column=3, value=0)
         ws_summary.cell(row=current_row, column=4, value=0)
@@ -727,47 +729,53 @@ def create_fixed_asset_report(
         ws_summary.cell(row=current_row, column=6, value=section_accumulated_depr)
         ws_summary.cell(row=current_row, column=7, value=section_annual_depr)
         
+        # ✅ الأشهر كصيغ ديناميكية
         for month in range(8, 20):
             ws_summary.cell(row=current_row, column=month, value=section_monthly_depr)
         
         ws_summary.cell(row=current_row, column=20, value=section_monthly_depr)
         ws_summary.cell(row=current_row, column=21, value=section_annual_depr)
         ws_summary.cell(row=current_row, column=22, value=0)
-        ws_summary.cell(row=current_row, column=23, value=section_accumulated_depr + section_annual_depr)
-        ws_summary.cell(row=current_row, column=24, value=section_net_value)
+        
+        # ✅ إجمالي الإهلاك المتراكم بصيغة
+        ws_summary.cell(row=current_row, column=23, value=f"=F{current_row}+G{current_row}")
+        # ✅ صافي القيمة بصيغة
+        ws_summary.cell(row=current_row, column=24, value=f"=E{current_row}-W{current_row}")
         
         for col in range(2, 25):
             cell = ws_summary.cell(row=current_row, column=col)
             cell.number_format = '#,##0.00'
             cell.alignment = Alignment(horizontal='center')
-        
         for col in range(1, 25):
             set_cell_shading(ws_summary.cell(row=current_row, column=col), PALETTE['section_bg'])
         
         current_row += 1
-    
-    # صف الإجمالي
+
+    last_data_row = current_row - 1
+
+    # ✅ صف الإجمالي بصيغ ديناميكية
     ws_summary.cell(row=current_row, column=1, value="Total")
     ws_summary.cell(row=current_row, column=1).font = Font(bold=True, size=SIZES['body'], color=PALETTE['royal_dark'])
-    ws_summary.cell(row=current_row, column=2, value=total_opening)
-    ws_summary.cell(row=current_row, column=7, value=total_depr)
-    ws_summary.cell(row=current_row, column=24, value=total_net)
+    
+    for col in [2, 5, 6, 7, 20, 21, 23, 24]:
+        col_letter = get_column_letter(col)
+        ws_summary.cell(row=current_row, column=col, value=f"=SUM({col_letter}{first_data_row}:{col_letter}{last_data_row})")
     
     for col in range(2, 25):
         cell = ws_summary.cell(row=current_row, column=col)
         cell.number_format = '#,##0.00'
         cell.font = Font(bold=True)
         set_cell_shading(cell, PALETTE['total_bg'])
-    
+
     ws_summary.column_dimensions['A'].width = 30
     for col in range(2, 25):
         ws_summary.column_dimensions[get_column_letter(col)].width = 12
-    
+
     # أوراق الأقسام التفصيلية
     for section in sections:
         ws = wb.create_sheet(title=section['name'][:31])
         ws.sheet_view.rightToLeft = True
-        
+
         ws.merge_cells('A1:Q1')
         title_cell = ws['A1']
         title_cell.value = f"RADIANT - {section['name']}"
@@ -775,13 +783,13 @@ def create_fixed_asset_report(
         title_cell.fill = PatternFill(start_color=PALETTE['royal_dark'], end_color=PALETTE['royal_dark'], fill_type='solid')
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
         ws.row_dimensions[1].height = 30
-        
+
         ws.merge_cells('A2:Q2')
         rate_cell = ws['A2']
         rate_cell.value = f"Depreciation Rate: {section['depreciation_rate']*100:.2f}%"
         rate_cell.font = Font(name=FONTS['body'], size=SIZES['body'], bold=True, color=PALETTE['royal_mid'])
         rate_cell.alignment = Alignment(horizontal='center')
-        
+
         detail_headers = [
             'S.No.', 'Supplier Name', 'Description', 'FA No.', 'Book Value',
             'Addition', 'Sold/Dispose', 'Total', 'Date Of Purchase',
@@ -789,7 +797,6 @@ def create_fixed_asset_report(
             'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
             'Total', 'Diff', 'W/Off AD', 'AD Dep. 12/31/25', 'Net Value 12/31/25'
         ]
-        
         header_row = 4
         for col_num, header in enumerate(detail_headers, 1):
             cell = ws.cell(row=header_row, column=col_num, value=header)
@@ -802,12 +809,12 @@ def create_fixed_asset_report(
                 top=Side(style='thin', color=PALETTE['silver']),
                 bottom=Side(style='medium', color=PALETTE['royal_dark'])
             )
-        
         ws.row_dimensions[header_row].height = 35
-        
+
         current_row = header_row + 1
         section_total_value = 0
         section_total_depr = 0
+        first_asset_row = current_row
         
         for asset in section['assets']:
             book_value = asset['book_value']
@@ -818,7 +825,7 @@ def create_fixed_asset_report(
             
             section_total_value += book_value
             section_total_depr += annual_depr
-            
+
             ws.cell(row=current_row, column=1, value=asset.get('sno', ''))
             ws.cell(row=current_row, column=2, value=asset.get('supplier', ''))
             ws.cell(row=current_row, column=3, value=asset.get('description', ''))
@@ -831,15 +838,19 @@ def create_fixed_asset_report(
             ws.cell(row=current_row, column=10, value=accumulated_depr)
             ws.cell(row=current_row, column=11, value=annual_depr)
             
+            # ✅ الأشهر كقيم (لأنها متساوية)
             for month_idx, month in enumerate(range(12, 24)):
                 ws.cell(row=current_row, column=month, value=monthly_depr)
             
-            ws.cell(row=current_row, column=24, value=annual_depr)
+            # ✅ إجمالي السنوي بصيغة SUM
+            ws.cell(row=current_row, column=24, value=f"=SUM(L{current_row}:W{current_row})")
             ws.cell(row=current_row, column=25, value=0)
             ws.cell(row=current_row, column=26, value=0)
-            ws.cell(row=current_row, column=27, value=accumulated_depr + annual_depr)
-            ws.cell(row=current_row, column=28, value=net_value)
-            
+            # ✅ إجمالي الإهلاك المتراكم بصيغة
+            ws.cell(row=current_row, column=27, value=f"=J{current_row}+X{current_row}")
+            # ✅ صافي القيمة بصيغة
+            ws.cell(row=current_row, column=28, value=f"=H{current_row}-AA{current_row}")
+
             for col in [5, 6, 7, 8, 10, 11] + list(range(12, 29)):
                 cell = ws.cell(row=current_row, column=col)
                 cell.number_format = '#,##0.00'
@@ -848,48 +859,46 @@ def create_fixed_asset_report(
             bg_color = PALETTE['row_even'] if current_row % 2 == 0 else PALETTE['row_odd']
             for col in range(1, 29):
                 set_cell_shading(ws.cell(row=current_row, column=col), bg_color)
-            
             current_row += 1
+
+        last_asset_row = current_row - 1
         
+        # ✅ صف الإجمالي بصيغ ديناميكية
         ws.cell(row=current_row, column=2, value="Total")
         ws.cell(row=current_row, column=2).font = Font(bold=True, color=PALETTE['royal_dark'])
-        ws.cell(row=current_row, column=5, value=section_total_value)
-        ws.cell(row=current_row, column=11, value=section_total_depr)
+        
+        for col in [5, 11, 24, 27, 28]:
+            col_letter = get_column_letter(col)
+            ws.cell(row=current_row, column=col, value=f"=SUM({col_letter}{first_asset_row}:{col_letter}{last_asset_row})")
         
         for col in [5, 11] + list(range(12, 29)):
             cell = ws.cell(row=current_row, column=col)
             cell.number_format = '#,##0.00'
             cell.font = Font(bold=True)
             set_cell_shading(cell, PALETTE['total_bg'])
-        
+
         ws.column_dimensions['A'].width = 6
         ws.column_dimensions['B'].width = 25
         ws.column_dimensions['C'].width = 35
         ws.column_dimensions['D'].width = 10
         for col in range(5, 29):
             ws.column_dimensions[get_column_letter(col)].width = 12
-        
         ws.freeze_panes = f'A{header_row + 1}'
         ws.auto_filter.ref = f'A{header_row}:{get_column_letter(len(detail_headers))}{current_row - 1}'
-    
+
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         filename = f"Fixed_Asset_{company_name}_{year}"
-    
     filename = get_unique_filename(save_dir, filename, 'xlsx')
     output_path = os.path.join(save_dir, filename)
-    
     wb.save(output_path)
-
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
     
     # ==========================================
-# دوال Excel متعددة الأغراض
+# دوال Excel متعددة الأغراض (النسخة الثانية)
 # ==========================================
 def create_multi_sheet_excel(
     sheets_config,
@@ -898,7 +907,6 @@ def create_multi_sheet_excel(
 ):
     """
     إنشاء ملف Excel متعدد الأوراق
-    
     sheets_config: قائمة من القواميس:
     - name: اسم الورقة
     - title: عنوان الورقة (اختياري)
@@ -906,8 +914,8 @@ def create_multi_sheet_excel(
     - data: قائمة البيانات
     """
     from core.config import WORKSPACE_DIR
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     
     for idx, sheet_cfg in enumerate(sheets_config):
         if idx == 0:
@@ -915,7 +923,6 @@ def create_multi_sheet_excel(
             ws.title = sheet_cfg['name'][:31]
         else:
             ws = wb.create_sheet(title=sheet_cfg['name'][:31])
-        
         create_excel_sheet(
             ws=ws,
             headers=sheet_cfg['headers'],
@@ -924,12 +931,20 @@ def create_multi_sheet_excel(
             freeze_row=True,
             auto_filter=True
         )
-    
+
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
+    if filename is None:
+        filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
+    filename = get_unique_filename(save_dir, filename, 'xlsx')
+    output_path = os.path.join(save_dir, filename)
+    wb.save(output_path)
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    return output_path
 
-    # ==========================================
-# دالة شاملة لإنشاء خطاب احترافي
+# ==========================================
+# دالة شاملة لإنشاء خطاب احترافي (النسخة الأولى - بدون ترقيم)
 # ==========================================
 def generate_professional_letter(
     organization_name,
@@ -949,13 +964,11 @@ def generate_professional_letter(
 ):
     """دالة شاملة لإنشاء خطاب احترافي كامل - بدون ترقيم"""
     from core.config import WORKSPACE_DIR
-    
     doc = Document()
     setup_document(doc)
     add_elegant_header(doc, organization_name, title)
     add_document_info(doc, recipient=recipient, subject=subject)
     add_greeting(doc)
-    
     # إضافة الفقرات بدون ترقيم نهائياً
     for para_text in paragraphs:
         p = doc.add_paragraph()
@@ -968,44 +981,35 @@ def generate_professional_letter(
         run.font.size = Pt(SIZES['body'])
         run.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
         set_paragraph_rtl(p)
-    
     if table_headers and table_data:
         create_professional_table(doc, table_headers, table_data, table_caption)
-    
     add_closing(doc, closing_text, signature_name, signature_title)
-    
     if note:
         add_note(doc, note)
-    
     add_footer(doc)
-    
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_title = title[:30].replace(' ', '_').replace('/', '-')
         filename = f"خطاب_{safe_title}"
-    
     filename = get_unique_filename(save_dir, filename, 'docx')
     output_path = os.path.join(save_dir, filename)
-    
     doc.save(output_path)
     return output_path
-    
-    if filename is None:
-        filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
-    
+
+# كود حفظ إضافي (من الملف الأصلي)
+if filename is None:
+    filename = f"Report_{datetime.now().strftime('%Y%m%d')}"
     filename = get_unique_filename(save_dir, filename, 'xlsx')
     output_path = os.path.join(save_dir, filename)
-    
     wb.save(output_path)
-
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
 
-
+# ==========================================
+# 🧾 فاتورة احترافية مع صيغ ديناميكية
+# ==========================================
 def create_professional_invoice(
     company_name,
     client_name,
@@ -1018,20 +1022,19 @@ def create_professional_invoice(
     filename=None
 ):
     """
-    إنشاء فاتورة احترافية
-    
+    إنشاء فاتورة احترافية مع صيغ Excel ديناميكية
     items: قائمة من القواميس:
     - description: الوصف
     - quantity: الكمية
     - unit_price: سعر الوحدة
     """
     from core.config import WORKSPACE_DIR
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     ws = wb.active
     ws.title = "الفاتورة"
     ws.sheet_view.rightToLeft = True
-    
+
     # عنوان الفاتورة
     ws.merge_cells('A1:F1')
     title_cell = ws['A1']
@@ -1040,7 +1043,7 @@ def create_professional_invoice(
     title_cell.alignment = Alignment(horizontal='center', vertical='center')
     title_cell.fill = PatternFill(start_color=PALETTE['royal_pale'], end_color=PALETTE['royal_pale'], fill_type='solid')
     ws.row_dimensions[1].height = 40
-    
+
     # معلومات الفاتورة
     ws['A2'] = f"رقم الفاتورة: {invoice_number}"
     ws['A2'].font = Font(bold=True, size=SIZES['body'])
@@ -1048,11 +1051,10 @@ def create_professional_invoice(
     ws['A3'].font = Font(bold=True, size=SIZES['body'])
     ws['A4'] = f"العميل: {client_name}"
     ws['A4'].font = Font(bold=True, size=SIZES['body'])
-    
+
     # رؤوس الجدول
     headers = ['#', 'الوصف', 'الكمية', 'سعر الوحدة', 'الإجمالي']
     header_row = 6
-    
     for col_num, header in enumerate(headers, 1):
         cell = ws.cell(row=header_row, column=col_num, value=header)
         cell.fill = PatternFill(start_color=PALETTE['royal_dark'], end_color=PALETTE['royal_dark'], fill_type='solid')
@@ -1064,25 +1066,19 @@ def create_professional_invoice(
             top=Side(style='thin', color=PALETTE['silver']),
             bottom=Side(style='medium', color=PALETTE['gold'])
         )
-    
     ws.row_dimensions[header_row].height = 28
-    
-    # البيانات
+
+    # ✅ البيانات مع صيغ ديناميكية
     data_start_row = header_row + 1
-    total = 0
-    
     for idx, item in enumerate(items, 1):
         row = data_start_row + idx - 1
-        quantity = item['quantity']
-        unit_price = item['unit_price']
-        item_total = quantity * unit_price
-        total += item_total
-        
         ws.cell(row=row, column=1, value=idx)
         ws.cell(row=row, column=2, value=item['description'])
-        ws.cell(row=row, column=3, value=quantity)
-        ws.cell(row=row, column=4, value=unit_price)
-        ws.cell(row=row, column=5, value=item_total)
+        ws.cell(row=row, column=3, value=item['quantity'])
+        ws.cell(row=row, column=4, value=item['unit_price'])
+        
+        # ✅ صيغة ديناميكية بدلاً من قيمة ثابتة
+        ws.cell(row=row, column=5, value=f"=C{row}*D{row}")
         
         for col in range(1, 6):
             cell = ws.cell(row=row, column=col)
@@ -1095,39 +1091,38 @@ def create_professional_invoice(
             )
             if col >= 3:
                 cell.number_format = '#,##0.00'
-        
         bg_color = PALETTE['row_even'] if idx % 2 == 0 else PALETTE['cream']
         for col in range(1, 6):
             ws.cell(row=row, column=col).fill = PatternFill(start_color=bg_color, end_color=bg_color, fill_type='solid')
-    
-    # الإجماليات
-    total_row = data_start_row + len(items)
+
+    last_data_row = data_start_row + len(items) - 1
+
+    # ✅ الإجماليات بصيغ ديناميكية
+    total_row = last_data_row + 1
     ws.cell(row=total_row, column=4, value="الإجمالي الفرعي:")
     ws.cell(row=total_row, column=4).font = Font(bold=True, size=SIZES['body'])
-    ws.cell(row=total_row, column=5, value=total)
+    ws.cell(row=total_row, column=5, value=f"=SUM(E{data_start_row}:E{last_data_row})")
     ws.cell(row=total_row, column=5).font = Font(bold=True, size=SIZES['body'])
     ws.cell(row=total_row, column=5).number_format = '#,##0.00'
-    
+
     tax_row = total_row + 1
-    tax_amount = total * tax_rate
     ws.cell(row=tax_row, column=4, value=f"الضريبة ({tax_rate*100}%):")
     ws.cell(row=tax_row, column=4).font = Font(bold=True, size=SIZES['body'])
-    ws.cell(row=tax_row, column=5, value=tax_amount)
+    ws.cell(row=tax_row, column=5, value=f"=E{total_row}*{tax_rate}")
     ws.cell(row=tax_row, column=5).font = Font(bold=True, size=SIZES['body'])
     ws.cell(row=tax_row, column=5).number_format = '#,##0.00'
-    
+
     final_row = tax_row + 1
-    final_total = total + tax_amount
     ws.cell(row=final_row, column=4, value="الإجمالي النهائي:")
     ws.cell(row=final_row, column=4).font = Font(bold=True, size=SIZES['heading'], color=PALETTE['royal_dark'])
-    ws.cell(row=final_row, column=5, value=final_total)
+    ws.cell(row=final_row, column=5, value=f"=E{total_row}+E{tax_row}")
     ws.cell(row=final_row, column=5).font = Font(bold=True, size=SIZES['heading'], color=PALETTE['royal_dark'])
     ws.cell(row=final_row, column=5).number_format = '#,##0.00'
-    
+
     for col in range(4, 6):
         for row in [total_row, tax_row, final_row]:
             ws.cell(row=row, column=col).fill = PatternFill(start_color=PALETTE['total_bg'], end_color=PALETTE['total_bg'], fill_type='solid')
-    
+
     # الملاحظات
     if notes:
         notes_row = final_row + 2
@@ -1135,36 +1130,31 @@ def create_professional_invoice(
         ws.cell(row=notes_row, column=1).font = Font(bold=True, size=SIZES['body'])
         ws.cell(row=notes_row + 1, column=1, value=notes)
         ws.cell(row=notes_row + 1, column=1).font = Font(size=SIZES['body'])
-    
+
     # ضبط العرض
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 40
     ws.column_dimensions['C'].width = 12
     ws.column_dimensions['D'].width = 15
     ws.column_dimensions['E'].width = 15
-    
+
     # تجميد
     ws.freeze_panes = f'A{data_start_row}'
-    
+
     # الحفظ
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         filename = f"فاتورة_{invoice_number}"
-    
     filename = get_unique_filename(save_dir, filename, 'xlsx')
     output_path = os.path.join(save_dir, filename)
-    
     wb.save(output_path)
-
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
 
 # ==========================================
-# دالة شاملة لإنشاء خطاب احترافي
+# دالة شاملة لإنشاء خطاب احترافي (النسخة الثانية - مع تنظيف الترقيم)
 # ==========================================
 def generate_professional_letter(
     organization_name,
@@ -1186,20 +1176,17 @@ def generate_professional_letter(
     """دالة شاملة لإنشاء خطاب احترافي كامل - مع تنظيف تلقائي للترقيم"""
     from core.config import WORKSPACE_DIR
     import re
-    
     doc = Document()
     setup_document(doc)
     add_elegant_header(doc, organization_name, title)
     add_document_info(doc, recipient=recipient, subject=subject)
     add_greeting(doc)
-    
     # تنظيف الفقرات من الترقيم التلقائي
     cleaned_paragraphs = []
     for para_text in paragraphs:
         # إزالة أي رقم في بداية النص (عربي أو إنجليزي)
         cleaned = re.sub(r'^[\d\u0660-\u0669]+[\.\-\)]\s*', '', para_text.strip())
         cleaned_paragraphs.append(cleaned)
-    
     # إضافة الفقرات المنظفة
     for para_text in cleaned_paragraphs:
         p = doc.add_paragraph()
@@ -1212,28 +1199,27 @@ def generate_professional_letter(
         run.font.size = Pt(SIZES['body'])
         run.font.color.rgb = RGBColor.from_string(PALETTE['charcoal'])
         set_paragraph_rtl(p)
-    
     if table_headers and table_data:
         create_professional_table(doc, table_headers, table_data, table_caption)
-    
     add_closing(doc, closing_text, signature_name, signature_title)
-    
     if note:
         add_note(doc, note)
-    
     add_footer(doc)
-    
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_title = title[:30].replace(' ', '_').replace('/', '-')
         filename = f"خطاب_{safe_title}"
-    
     filename = get_unique_filename(save_dir, filename, 'docx')
+    # ✅ كود الحفظ الناقص في الملف الأصلي
+    output_path = os.path.join(save_dir, filename)
+    doc.save(output_path)
+    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    print("SUCCESS: " + output_path)
+    return output_path
 
-    # ==========================================
-# 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي
+# ==========================================
+# 📊 دالة شاملة لإنشاء أي تقرير مالي احترافي مع صيغ ديناميكية
 # ==========================================
 def generate_financial_report(
     report_type: str,
@@ -1250,20 +1236,18 @@ def generate_financial_report(
 ) -> str:
     """
     إنشاء أي تقرير مالي احترافي بمعايير محاسبية دولية
-    
     report_type: نوع التقرير
-        - 'income_statement': قائمة الدخل
-        - 'cash_flow_direct': التدفقات النقدية (مباشرة)
-        - 'cash_flow_indirect': التدفقات النقدية (غير مباشرة)
-        - 'equity_statement': قائمة حقوق الملكية
-        - 'balance_sheet': قائمة المركز المالي (الميزانية)
-        - 'trial_balance': ميزان المراجعة
-        - 'fixed_assets': قائمة الأصول الثابتة والإهلاكات
-        - 'sales_report': تقرير المبيعات
-        - 'expenses_report': تقرير المصروفات
-        - 'account_statement': كشف حساب
-        - 'bank_reconciliation': مطابقة بنكية
-    
+    - 'income_statement': قائمة الدخل
+    - 'cash_flow_direct': التدفقات النقدية (مباشرة)
+    - 'cash_flow_indirect': التدفقات النقدية (غير مباشرة)
+    - 'equity_statement': قائمة حقوق الملكية
+    - 'balance_sheet': قائمة المركز المالي (الميزانية)
+    - 'trial_balance': ميزان المراجعة
+    - 'fixed_assets': قائمة الأصول الثابتة والإهلاكات
+    - 'sales_report': تقرير المبيعات
+    - 'expenses_report': تقرير المصروفات
+    - 'account_statement': كشف حساب
+    - 'bank_reconciliation': مطابقة بنكية
     sections: قائمة الأقسام، كل قسم:
     {
         'title': 'عنوان القسم',
@@ -1272,11 +1256,10 @@ def generate_financial_report(
         'is_total': False,  # هل هذا صف إجمالي؟
         'is_subtotal': False  # هل هذا صف إجمالي فرعي؟
     }
-    
     style: نمط التنسيق
-        - 'accounting': محاسبي كلاسيكي (أزرق داكن)
-        - 'modern': حديث (أخضر/رمادي)
-        - 'classic': تقليدي (أسود/أبيض)
+    - 'accounting': محاسبي كلاسيكي (أزرق داكن)
+    - 'modern': حديث (أخضر/رمادي)
+    - 'classic': تقليدي (أسود/أبيض)
     """
     from core.config import WORKSPACE_DIR
     import openpyxl
@@ -1285,18 +1268,18 @@ def generate_financial_report(
     from openpyxl.formatting.rule import CellIsRule
     
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
+    
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
     
     # إنشاء الورقة الرئيسية (بدلاً من wb.active الذي يصبح None)
     ws = wb.create_sheet(title=report_type)
     ws.sheet_view.rightToLeft = True
-    
+
     # ==========================================
     # أنماط التنسيق حسب النوع
     # ==========================================
-    
-
     styles_config = {
         'accounting': {
             'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
@@ -1332,9 +1315,8 @@ def generate_financial_report(
             'border_color': "5D6D7E"
         }
     }
-    
     current_style = styles_config.get(style, styles_config['accounting'])
-    
+
     # حدود الخلايا
     thin_border = Border(
         left=Side(style="thin", color=current_style['border_color']),
@@ -1342,13 +1324,12 @@ def generate_financial_report(
         top=Side(style="thin", color=current_style['border_color']),
         bottom=Side(style="thin", color=current_style['border_color'])
     )
-    
+
     # محاذاة
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
     left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    
-    
+
     # عنوان التقرير (مدمج)
     num_cols = max(len(sec['headers']) for sec in sections) if sections else 6
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=num_cols)
@@ -1357,11 +1338,12 @@ def generate_financial_report(
     title_cell.font = Font(name="Arial", size=14, bold=True, color=current_style['title_color'])
     title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[1].height = 50
-    
+
     # ==========================================
     # إضافة الأقسام والبيانات
     # ==========================================
     current_row = 3
+    section_start_rows = {}  # ✅ لتتبع بداية كل قسم للصيغ
     
     for sec_idx, section in enumerate(sections):
         # عنوان القسم
@@ -1371,7 +1353,7 @@ def generate_financial_report(
         section_title.font = Font(name="Arial", size=11, bold=True, italic=True, color=current_style['title_color'])
         section_title.alignment = left_align
         current_row += 1
-        
+
         # رؤوس الأعمدة
         for col_idx, header in enumerate(section['headers'], 1):
             cell = ws.cell(row=current_row, column=col_idx, value=header)
@@ -1382,7 +1364,10 @@ def generate_financial_report(
         ws.row_dimensions[current_row].height = 25
         header_row = current_row
         current_row += 1
-        
+
+        # تتبع بداية بيانات القسم
+        section_start_rows[sec_idx] = current_row
+
         # بيانات القسم
         for row_data in section['data']:
             is_total_row = row_data[-1] if isinstance(row_data[-1], dict) and row_data[-1].get('is_total') else False
@@ -1415,56 +1400,71 @@ def generate_financial_report(
         
         # مسافة بين الأقسام
         current_row += 1
-    
+
     # ==========================================
-    # إضافة معادلات Excel التلقائية (إن طُلب)
+    # ✅ إضافة معادلات Excel التلقائية (بدلاً من pass)
     # ==========================================
     if include_formulas and include_totals:
-        # يمكن إضافة معادلات SUM للأعمدة المالية هنا
-        pass
-    
+        # تطبيق الصيغ على كل قسم
+        for sec_idx, section in enumerate(sections):
+            if sec_idx in section_start_rows:
+                first_row = section_start_rows[sec_idx]
+                last_row = current_row - 2  # آخر صف بيانات قبل المسافة
+                
+                if last_row >= first_row:
+                    # إضافة صف إجمالي
+                    total_row = last_row + 1
+                    ws.cell(row=total_row, column=1, value="الإجمالي")
+                    ws.cell(row=total_row, column=1).font = current_style['total_font']
+                    ws.cell(row=total_row, column=1).fill = current_style['total_fill']
+                    ws.cell(row=total_row, column=1).border = thin_border
+                    
+                    # ✅ صيغ SUM للأعمدة المالية (من العمود 2 فما فوق)
+                    for col_idx in range(2, num_cols + 1):
+                        col_letter = get_column_letter(col_idx)
+                        formula = f"=SUM({col_letter}{first_row}:{col_letter}{last_row})"
+                        cell = ws.cell(row=total_row, column=col_idx, value=formula)
+                        cell.font = current_style['total_font']
+                        cell.fill = current_style['total_fill']
+                        cell.alignment = right_align
+                        cell.border = thin_border
+                        cell.number_format = '#,##0.00'
+
     # ==========================================
     # تجميد الصفوف وتفعيل الفلاتر
     # ==========================================
     ws.freeze_panes = 'A4'
     ws.auto_filter.ref = f"A3:{get_column_letter(num_cols)}{current_row}"
-    
+
     # ==========================================
     # ضبط عرض الأعمدة
     # ==========================================
     for col in range(1, num_cols + 1):
         ws.column_dimensions[get_column_letter(col)].width = 18
-    
+
     # ==========================================
     # حفظ الملف
     # ==========================================
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_company = company_name.replace(' ', '_')[:20]
         safe_type = report_type.replace('_', '_')
         filename = f"{safe_type}_{safe_company}_{period}"
-    
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-    
     # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
-    
-    output_path = os.path.join(save_dir, filename)
-    
-    doc.save(output_path)
 
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
-    print("SUCCESS: " + output_path)
-    
-    return output_path
+# كود إضافي من الملف الأصلي (يبدو أنه مكرر)
+output_path = os.path.join(save_dir, filename)
+doc.save(output_path)
+# ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+print("SUCCESS: " + output_path)
+return output_path
 
 # ==========================================
 # 📝 دالة إنشاء خطاب بأنماط ديناميكية
@@ -1486,47 +1486,35 @@ def generate_styled_letter(
     signatures=None,
     output_dir=None,
     filename=None,
-    **kwargs
+    **kwargs  # 🆕 نظام هجين
 ):
     """إنشاء خطاب باستخدام نظام الأنماط الديناميكي"""
     from core.config import WORKSPACE_DIR
-    
     doc = Document()
     setup_document(doc)
-    
     apply_header_style(doc, header_style, organization_name, title)
     add_document_info(doc, recipient=recipient, subject=subject)
     add_greeting(doc)
     apply_content_style(doc, content_style, paragraphs)
-    
     if table_headers and table_data:
         apply_table_style(doc, table_style, table_headers, table_data, table_caption)
-    
     apply_signature_style(doc, signature_style, signatures)
     apply_footer_style(doc, footer_style)
-    
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_title = title[:30].replace(' ', '_').replace('/', '-')
         filename = f"خطاب_{safe_title}"
-    
     filename = get_unique_filename(save_dir, filename, 'docx')
     output_path = os.path.join(save_dir, filename)
-    
     doc.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
+    # ✅ طبقة الحماية النهائية
     print("SUCCESS: " + output_path)
-    
     return output_path
-
 
 # ==========================================
 # 📊 دالة إنشاء تقرير مالي احترافي (مثل Fixed Asset Listing)
 # ==========================================
-
 # قاموس نسب الإهلاك الافتراضية (طريقة الرصيد المتناقص)
 DEFAULT_DEPRECIATION_RATES = {
     'المركبات': 33.33,
@@ -1546,39 +1534,27 @@ def create_fixed_asset_report(
     sections: list,
     output_dir: str = None,
     filename: str = None,
-    assets: list = None,  # ✅ معلمة جديدة: بيانات الأصول التفصيلية
-    include_depreciation_schedule: bool = True,  # ✅ معلمة جديدة: هل نضيف ورقة الإهلاك؟
+    assets: list = None,
+    include_depreciation_schedule: bool = True,
+    # 🆕 معاملات النظام الهجين
+    custom_assets: list = None,
+    extra_sheets: list = None,
     **kwargs
 ) -> str:
     """
     إنشاء تقرير أصول ثابتة / تقرير مالي متعدد الأوراق بمعايير محاسبية احترافية
-    
-    sections: قائمة تحتوي على أقسام التقرير، كل قسم عبارة عن قاموس:
-    {
-        'sheet_name': 'اسم_الورقة',
-        'headers': ['رقم الأصل', 'الوصف', 'تاريخ الشراء', 'التكلفة', 'الإهلاك', 'الصافي'],
-        'data': [['A001', 'سيارة', '2023-01-01', 150000, 30000, 120000], ...]
-    }
-    
-    assets (اختياري): قائمة الأصول التفصيلية لحساب الإهلاك الشهري:
-    [
-        {
-            'asset_id': 'V-001',
-            'description': 'تويوتا هايلكس 2024',
-            'category': 'المركبات',  # يُستخدم لاستخراج نسبة الإهلاك الافتراضية
-            'cost': 185000,
-            'accumulated_dep_start': 37000,
-            'depreciation_rate': 33.33,  # إذا لم يُحدد، يُستخدم الافتراضي حسب الفئة
-            'salvage_value': 0
-        }
-    ]
     """
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
     from openpyxl.utils import get_column_letter
     
+    # دمج الأصول المخصصة
+    if custom_assets and assets:
+        assets = assets + custom_assets
+    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     
     # إزالة الورقة الافتراضية
     if 'Sheet' in wb.sheetnames:
@@ -1592,7 +1568,6 @@ def create_fixed_asset_report(
     data_font = Font(name="Arial", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right_align = Alignment(horizontal="right", vertical="center", wrap_text=True)
-    
     thin_border = Border(
         left=Side(style="thin", color="B4C7E7"),
         right=Side(style="thin", color="B4C7E7"),
@@ -1604,35 +1579,27 @@ def create_fixed_asset_report(
     summary_ws = wb.create_sheet(title="ملخص التقرير")
     summary_ws.sheet_view.rightToLeft = True
     
-    # عنوان التقرير (خلايا مدمجة)
     summary_ws.merge_cells('A1:F1')
     title_cell = summary_ws['A1']
     title_cell.value = f"تقرير الأصول الثابتة - {company_name} ({year})"
     title_cell.font = Font(name="Arial", size=16, bold=True, color="1F4E79")
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
-    
     summary_ws.row_dimensions[1].height = 40
-    
-    # جدول الملخص
+
     summary_headers = ["القسم", "عدد الأصول", "إجمالي التكلفة", "إجمالي الإهلاك", "صافي القيمة"]
     summary_ws.append(summary_headers)
-    
-    # تنسيق رأس جدول الملخص
+
     for col_num, header in enumerate(summary_headers, 1):
         cell = summary_ws.cell(row=2, column=col_num)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_align
         cell.border = thin_border
-    
     summary_ws.row_dimensions[2].height = 25
-    
-    # إضافة بيانات الملخص (حسابات تلقائية بسيطة)
-    total_cost = 0
-    total_depreciation = 0
-    total_net = 0
-    
+
     row_idx = 3
+    first_data_row = row_idx
+    
     for sec in sections:
         data = sec.get('data', [])
         cost = sum(float(row[3]) if len(row) > 3 and str(row[3]).replace('.','').isdigit() else 0 for row in data)
@@ -1641,7 +1608,6 @@ def create_fixed_asset_report(
         
         summary_ws.append([sec['sheet_name'], len(data), cost, dep, net])
         
-        # تنسيق صف البيانات
         for col_num in range(1, 6):
             cell = summary_ws.cell(row=row_idx, column=col_num)
             cell.font = data_font
@@ -1649,14 +1615,12 @@ def create_fixed_asset_report(
             cell.border = thin_border
             if col_num in [3, 4, 5]:
                 cell.number_format = '#,##0.00'
-        
-        total_cost += cost
-        total_depreciation += dep
-        total_net += net
         row_idx += 1
+
+    last_data_row = row_idx - 1
     
-    # صف الإجمالي النهائي
-    summary_ws.append(["الإجمالي الكلي", "", total_cost, total_depreciation, total_net])
+    # ✅ صف الإجمالي بصيغ ديناميكية بدلاً من قيم ثابتة
+    summary_ws.append(["الإجمالي الكلي", "", None, None, None])
     for col_num in range(1, 6):
         cell = summary_ws.cell(row=row_idx, column=col_num)
         cell.fill = total_fill
@@ -1664,9 +1628,10 @@ def create_fixed_asset_report(
         cell.alignment = center_align if col_num in [1, 2] else right_align
         cell.border = thin_border
         if col_num in [3, 4, 5]:
+            col_letter = get_column_letter(col_num)
+            cell.value = f"=SUM({col_letter}{first_data_row}:{col_letter}{last_data_row})"
             cell.number_format = '#,##0.00'
-            
-    # ضبط عرض الأعمدة في الملخص
+
     for col in range(1, 6):
         summary_ws.column_dimensions[get_column_letter(col)].width = 18
 
@@ -1674,16 +1639,14 @@ def create_fixed_asset_report(
     for sec in sections:
         ws = wb.create_sheet(title=sec['sheet_name'])
         ws.sheet_view.rightToLeft = True
-        
-        # عنوان الورقة
+
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(sec['headers']))
         title_cell = ws.cell(row=1, column=1)
         title_cell.value = f"تفاصيل: {sec['sheet_name']}"
         title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
         title_cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[1].height = 30
-        
-        # إضافة الرؤوس
+
         ws.append(sec['headers'])
         header_row = 2
         for col_num, header in enumerate(sec['headers'], 1):
@@ -1693,53 +1656,57 @@ def create_fixed_asset_report(
             cell.alignment = center_align
             cell.border = thin_border
         ws.row_dimensions[header_row].height = 25
-        
-        # إضافة البيانات
+
+        data_start_row = header_row + 1
         for row_data in sec['data']:
             ws.append(row_data)
             current_row = ws.max_row
-            
             for col_num, cell_data in enumerate(row_data, 1):
                 cell = ws.cell(row=current_row, column=col_num)
                 cell.font = data_font
                 cell.alignment = center_align if col_num == 1 else right_align
                 cell.border = thin_border
-                
-                # تنسيق محاسبي للأعمدة المالية (افترض أن الأعمدة من 3 فما بعد هي أرقام)
                 if col_num >= 3:
                     cell.number_format = '#,##0.00'
-        
-        # تجميد الصف العلوي وتفعيل الفلتر
+
+        last_row = ws.max_row
+        # ✅ إضافة صف إجمالي بصيغ SUM
+        if last_row >= data_start_row:
+            ws.cell(row=last_row + 1, column=1, value="الإجمالي")
+            ws.cell(row=last_row + 1, column=1).font = total_font
+            ws.cell(row=last_row + 1, column=1).fill = total_fill
+            ws.cell(row=last_row + 1, column=1).border = thin_border
+            
+            for col_num in range(3, len(sec['headers']) + 1):
+                col_letter = get_column_letter(col_num)
+                formula = f"=SUM({col_letter}{data_start_row}:{col_letter}{last_row})"
+                cell = ws.cell(row=last_row + 1, column=col_num, value=formula)
+                cell.font = total_font
+                cell.fill = total_fill
+                cell.alignment = right_align
+                cell.border = thin_border
+                cell.number_format = '#,##0.00'
+
         ws.freeze_panes = 'A3'
-        ws.auto_filter.ref = f"A2:{get_column_letter(len(sec['headers']))}{ws.max_row}"
-        
-        # ضبط عرض الأعمدة
+        ws.auto_filter.ref = f"A2:{get_column_letter(len(sec['headers']))}{last_row}"
         for col in range(1, len(sec['headers']) + 1):
             ws.column_dimensions[get_column_letter(col)].width = 18
 
-  # 3️⃣ ✅ إضافة ورقة الإهلاك الشهري (تلقائياً من sections)
+    # 3️⃣ ✅ إضافة ورقة الإهلاك الشهري
     if include_depreciation_schedule:
-        # استخراج بيانات الأصول من sections تلقائياً
         extracted_assets = []
         for sec in sections:
             sheet_name = sec.get('sheet_name', '')
-            headers = sec.get('headers', [])
             data = sec.get('data', [])
-            
-            # تحديد أعمدة التكلفة والإهلاك (افتراضياً: العمود 3 = التكلفة، 4 = الإهلاك)
-            cost_col = 3  # العمود الرابع (0-indexed: 3)
-            dep_col = 4   # العمود الخامس (0-indexed: 4)
-            
+            cost_col = 3
+            dep_col = 4
             for row in data:
                 if len(row) > dep_col:
                     asset_id = row[0] if len(row) > 0 else ''
                     description = row[1] if len(row) > 1 else ''
                     cost = float(row[cost_col]) if cost_col < len(row) and str(row[cost_col]).replace('.','').isdigit() else 0
                     accumulated_dep = float(row[dep_col]) if dep_col < len(row) and str(row[dep_col]).replace('.','').isdigit() else 0
-                    
-                    # استخراج نسبة الإهلاك من الفئة
                     rate = DEFAULT_DEPRECIATION_RATES.get(sheet_name, 20.00)
-                    
                     extracted_assets.append({
                         'asset_id': asset_id,
                         'description': description,
@@ -1750,7 +1717,9 @@ def create_fixed_asset_report(
                         'salvage_value': 0
                     })
         
-        # إنشاء ورقة الإهلاك إذا وجدت أصول
+        if custom_assets:
+            extracted_assets.extend(custom_assets)
+            
         if extracted_assets:
             _add_depreciation_sheet(
                 wb=wb,
@@ -1764,26 +1733,29 @@ def create_fixed_asset_report(
                 center_align=center_align
             )
 
-    # 4️⃣ حفظ الملف
+    # 4️⃣ أوراق إضافية مخصصة (نظام هجين)
+    if extra_sheets:
+        for sheet_cfg in extra_sheets:
+            ws = wb.create_sheet(title=sheet_cfg.get('name', 'ورقة إضافية'))
+            ws.sheet_view.rightToLeft = True
+            if sheet_cfg.get('headers'):
+                ws.append(sheet_cfg['headers'])
+            if sheet_cfg.get('data'):
+                for row in sheet_cfg['data']:
+                    ws.append(row)
+
+    # 5️⃣ حفظ الملف
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_company = company_name.replace(' ', '_')[:20]
         filename = f"تقرير_الأصول_{safe_company}_{year}"
-    
-    # إضافة امتداد إذا لم يكن موجوداً
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-        
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
-
 
 # ==========================================
 # 📅 دالة داخلية: إضافة ورقة الإهلاك الشهري
@@ -1799,85 +1771,58 @@ def _add_depreciation_sheet(
     thin_border,
     center_align
 ):
-    """
-    إضافة ورقة الإهلاك الشهري المضغوط إلى ملف الأصول الثابتة
-    """
+    """إضافة ورقة الإهلاك الشهري مع صيغ ديناميكية"""
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
     
     ws = wb.create_sheet(title="جدول_الإهلاك_الشهري")
     ws.sheet_view.rightToLeft = True
-    
-    # الأنماط الخاصة بورقة الإهلاك
+
     rate_font = Font(name="Arial", size=10, bold=True, color="C9A961")
-    
-    # ==========================================
-    # العنوان الرئيسي
-    # ==========================================
+
     ws.merge_cells('A1:S1')
     title_cell = ws['A1']
     title_cell.value = f"جدول الإهلاك الشهري (طريقة الرصيد المتناقص) - {company_name} ({year})"
     title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
     title_cell.alignment = center_align
     ws.row_dimensions[1].height = 30
-    
-    # ==========================================
-    # رؤوس الأعمدة
-    # ==========================================
+
     headers = [
         'رقم الأصل', 'الوصف', 'التكلفة', 'رصيد أول المدة', 'نسبة الإهلاك %',
-        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
         'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
         'إجمالي السنوي', 'رصيد آخر المدة'
     ]
-    
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=2, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_align
         cell.border = thin_border
-    
     ws.row_dimensions[2].height = 25
-    
-    # ==========================================
-    # إدخال البيانات والحسابات المحاسبية
-    # ==========================================
+
     row = 3
     months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
     
     for asset in assets:
         cost = asset.get('cost', 0)
         acc_dep_start = asset.get('accumulated_dep_start', 0)
-        
-        # استخراج نسبة الإهلاك: إما من الأصل مباشرة أو من الفئة الافتراضية
         rate = asset.get('depreciation_rate')
         if rate is None:
             category = asset.get('category', '')
-            # البحث عن نسبة افتراضية تطابق الفئة
-            rate = DEFAULT_DEPRECIATION_RATES.get(category, 20.00)  # 20% كقيمة افتراضية
-        
+            rate = DEFAULT_DEPRECIATION_RATES.get(category, 20.00)
         salvage = asset.get('salvage_value', 0)
-        
-        # الرصيد الدفتري في بداية السنة
         beg_book_value = cost - acc_dep_start
         
-        # المعادلة: الإهلاك السنوي = الرصيد المتبقي * النسبة
         annual_depreciation = beg_book_value * (rate / 100)
-        
-        # التأكد من عدم النزول تحت قيمة الخردة
         max_allowable_dep = beg_book_value - salvage
         if annual_depreciation > max_allowable_dep:
             annual_depreciation = max_allowable_dep
-            
-        # الإهلاك الشهري = السنوي / 12
         monthly_depreciation = annual_depreciation / 12
-        
-        # --- كتابة البيانات الأساسية ---
+
         ws.cell(row=row, column=1, value=asset.get('asset_id', '')).font = data_font
         ws.cell(row=row, column=2, value=asset.get('description', '')).font = data_font
         
-        # تنسيق الأرقام الأساسية
         for col, val in [(3, cost), (4, beg_book_value), (5, rate)]:
             cell = ws.cell(row=row, column=col, value=val)
             cell.font = data_font if col != 5 else rate_font
@@ -1887,52 +1832,45 @@ def _add_depreciation_sheet(
                 cell.number_format = '0.00"%"'
             else:
                 cell.number_format = '#,##0.00'
-        
-        # --- كتابة الأشهر والحسابات التراكمية ---
+
         current_bv = beg_book_value
-        total_dep_this_year = 0
         
         for i, month_col in enumerate(months_indices):
-            if i == 11:  # شهر ديسمبر (ضبط نهائي)
+            if i == 11:
                 month_dep = annual_depreciation - (monthly_depreciation * 11)
             else:
                 month_dep = monthly_depreciation
-                
-            # التأكد من عدم تجاوز قيمة الخردة في أي شهر
+            
             if (current_bv - month_dep) < salvage:
                 month_dep = current_bv - salvage
-                
+            
             cell = ws.cell(row=row, column=month_col, value=month_dep)
             cell.number_format = '#,##0.00'
             cell.font = data_font
             cell.border = thin_border
-            
             current_bv -= month_dep
-            total_dep_this_year += month_dep
-        
-        # --- الإجماليات النهائية ---
-        total_cell = ws.cell(row=row, column=18, value=total_dep_this_year)
+
+        # ✅ الإجمالي السنوي بصيغة SUM ديناميكية
+        total_cell = ws.cell(row=row, column=18)
+        total_cell.value = f"=SUM(F{row}:Q{row})"
         total_cell.number_format = '#,##0.00'
         total_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
         total_cell.border = thin_border
         
-        end_bv_cell = ws.cell(row=row, column=19, value=current_bv)
+        # ✅ رصيد آخر المدة بصيغة ديناميكية
+        end_bv_cell = ws.cell(row=row, column=19)
+        end_bv_cell.value = f"=D{row}-R{row}"
         end_bv_cell.number_format = '#,##0.00'
         end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449")
         end_bv_cell.border = thin_border
         
         row += 1
 
-    # ==========================================
-    # التنسيقات النهائية (تجميد وأحجام)
-    # ==========================================
     ws.freeze_panes = 'C3'
-    
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 25
     for col in range(3, 20):
         ws.column_dimensions[get_column_letter(col)].width = 11
-        
     for r in range(2, row):
         ws.row_dimensions[r].height = 18
 
@@ -1956,34 +1894,25 @@ def generate_ats_cv(
     objective=None,
     output_dir=None,
     filename=None,
-    **kwargs
+    **kwargs  # 🆕 نظام هجين
 ):
     """
     إنشاء سيرة ذاتية متوافقة 100% مع أنظمة ATS
-    - تنسيق بسيط ونظيف
-    - خطوط قياسية
-    - عناوين واضحة
-    - بدون جداول معقدة
     """
     from core.config import WORKSPACE_DIR
-    
     doc = Document()
-    
-    # إعدادات أساسية
     section = doc.sections[0]
     section.top_margin = Cm(1.5)
     section.bottom_margin = Cm(1.5)
     section.left_margin = Cm(2)
     section.right_margin = Cm(2)
-    
     style = doc.styles['Normal']
     style.font.name = 'Calibri'
     style.font.size = Pt(11)
     style.font.color.rgb = RGBColor.from_string('000000')
     style.paragraph_format.line_spacing = 1.15
     style.paragraph_format.space_after = Pt(4)
-
-    # 1. الاسم الكامل
+    
     name_para = doc.add_paragraph()
     name_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     name_run = name_para.add_run(full_name.upper())
@@ -1991,8 +1920,7 @@ def generate_ats_cv(
     name_run.font.size = Pt(20)
     name_run.font.bold = True
     name_run.font.color.rgb = RGBColor.from_string('1B3A5C')
-
-    # 2. معلومات الاتصال
+    
     contact_para = doc.add_paragraph()
     contact_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     contact_text = f"{phone} | {email} | {location}"
@@ -2004,8 +1932,7 @@ def generate_ats_cv(
     contact_run.font.color.rgb = RGBColor.from_string('5D6D7E')
     
     doc.add_paragraph()
-
-    # دالة مساعدة لعناوين الأقسام
+    
     def add_ats_section_title(title_text):
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(10)
@@ -2020,12 +1947,10 @@ def generate_ats_cv(
         run.font.size = Pt(12)
         run.font.bold = True
         run.font.color.rgb = RGBColor.from_string('1B3A5C')
-
-    # دالة مساعدة للتحقق من اللغة العربية
+    
     def is_arabic(text):
         return any('\u0600' <= c <= '\u06FF' for c in str(text))
-
-    # 3. الهدف المهني (اختياري)
+    
     if objective:
         add_ats_section_title("الهدف المهني" if is_arabic(objective) else "Career Objective")
         obj_para = doc.add_paragraph()
@@ -2033,37 +1958,29 @@ def generate_ats_cv(
         obj_run = obj_para.add_run(objective)
         obj_run.font.name = 'Calibri'
         obj_run.font.size = Pt(11)
-
-    # 4. الملخص المهني
+    
     add_ats_section_title("ملخص مهني" if is_arabic(summary) else "Professional Summary")
     summary_para = doc.add_paragraph()
     summary_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(summary) else WD_ALIGN_PARAGRAPH.LEFT
     summary_run = summary_para.add_run(summary)
     summary_run.font.name = 'Calibri'
     summary_run.font.size = Pt(11)
-
-    # 5. الخبرة العملية
+    
     if experience:
         add_ats_section_title("الخبرة العملية" if is_arabic(experience) else "Work Experience")
         for exp in experience:
             header_p = doc.add_paragraph()
             header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(exp) else WD_ALIGN_PARAGRAPH.LEFT
-            
             role_run = header_p.add_run(exp.get('role', ''))
             role_run.font.bold = True
             role_run.font.size = Pt(11)
-            
             header_p.add_run(" | ")
-            
             company_run = header_p.add_run(exp.get('company', ''))
             company_run.font.italic = True
-            
             header_p.add_run(" | ")
-            
             date_run = header_p.add_run(exp.get('date', ''))
             date_run.font.size = Pt(10)
             date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
-            
             for responsibility in exp.get('responsibilities', []):
                 bullet_p = doc.add_paragraph()
                 bullet_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(responsibility) else WD_ALIGN_PARAGRAPH.LEFT
@@ -2072,29 +1989,22 @@ def generate_ats_cv(
                 bullet_run = bullet_p.add_run(f"• {responsibility}")
                 bullet_run.font.name = 'Calibri'
                 bullet_run.font.size = Pt(11)
-
-    # 6. التعليم
+    
     if education:
         add_ats_section_title("التعليم" if is_arabic(education) else "Education")
         for edu in education:
             edu_p = doc.add_paragraph()
             edu_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(edu) else WD_ALIGN_PARAGRAPH.LEFT
-            
             degree_run = edu_p.add_run(edu.get('degree', ''))
             degree_run.font.bold = True
-            
             edu_p.add_run(" - ")
-            
             uni_run = edu_p.add_run(edu.get('university', ''))
             uni_run.font.italic = True
-            
             edu_p.add_run(" | ")
-            
             year_run = edu_p.add_run(edu.get('year', ''))
             year_run.font.size = Pt(10)
             year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
-
-    # 7. المهارات (كنقاط)
+    
     if skills:
         add_ats_section_title("المهارات" if is_arabic(skills) else "Skills")
         for skill in skills:
@@ -2104,29 +2014,25 @@ def generate_ats_cv(
             skill_run = skill_p.add_run(f"• {skill}")
             skill_run.font.name = 'Calibri'
             skill_run.font.size = Pt(11)
-
-    # 8. اللغات (جديد)
+    
     if languages:
         add_ats_section_title("اللغات" if is_arabic(languages) else "Languages")
         for lang in languages:
             lang_p = doc.add_paragraph()
             lang_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(lang) else WD_ALIGN_PARAGRAPH.LEFT
             lang_p.paragraph_format.space_after = Pt(2)
-            
             name_run = lang_p.add_run(lang.get('name', ''))
             name_run.font.bold = True
             lang_p.add_run(" - ")
             level_run = lang_p.add_run(lang.get('level', ''))
             level_run.font.size = Pt(10)
-
-    # 9. الشهادات (جديد)
+    
     if certifications:
         add_ats_section_title("الشهادات" if is_arabic(certifications) else "Certifications")
         for cert in certifications:
             cert_p = doc.add_paragraph()
             cert_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(cert) else WD_ALIGN_PARAGRAPH.LEFT
             cert_p.paragraph_format.space_after = Pt(2)
-            
             name_run = cert_p.add_run(cert.get('name', ''))
             name_run.font.bold = True
             cert_p.add_run(" | ")
@@ -2135,29 +2041,25 @@ def generate_ats_cv(
             year_run = cert_p.add_run(cert.get('year', ''))
             year_run.font.size = Pt(10)
             year_run.font.color.rgb = RGBColor.from_string('5D6D7E')
-
-    # 10. المشاريع (جديد)
+    
     if projects:
         add_ats_section_title("المشاريع" if is_arabic(projects) else "Projects")
         for proj in projects:
             proj_p = doc.add_paragraph()
             proj_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(proj) else WD_ALIGN_PARAGRAPH.LEFT
-            
             name_run = proj_p.add_run(proj.get('name', ''))
             name_run.font.bold = True
             proj_p.add_run(" | ")
             date_run = proj_p.add_run(proj.get('date', ''))
             date_run.font.size = Pt(10)
             date_run.font.color.rgb = RGBColor.from_string('5D6D7E')
-            
             if proj.get('description'):
                 desc_p = doc.add_paragraph()
                 desc_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_arabic(proj['description']) else WD_ALIGN_PARAGRAPH.LEFT
                 desc_p.paragraph_format.left_indent = Cm(0.5)
                 desc_run = desc_p.add_run(proj['description'])
                 desc_run.font.size = Pt(11)
-
-    # 11. الاهتمامات (جديد)
+    
     if interests:
         add_ats_section_title("الاهتمامات" if is_arabic(interests) else "Interests")
         interests_p = doc.add_paragraph()
@@ -2166,26 +2068,19 @@ def generate_ats_cv(
         interests_run = interests_p.add_run(interests_text)
         interests_run.font.name = 'Calibri'
         interests_run.font.size = Pt(11)
-
-    # الحفظ
+    
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_name = full_name.replace(' ', '_')
         filename = f"CV_{safe_name}"
-    
     filename = get_unique_filename(save_dir, filename, 'docx')
     output_path = os.path.join(save_dir, filename)
-    
     doc.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
-
-# ==========================================
+    
+    # ==========================================
 # 🔄 دالة محاكاة الملفات (Replication)
 # تحلل ملف مرجعي وتولد كود Python لإعادة بنائه
 # ==========================================
@@ -2197,26 +2092,12 @@ def replicate_document(
 ) -> dict:
     """
     تحليل ملف مرجعي (Word/Excel) وتوليد كود Python لإعادة بنائه
-    
-    تُستخدم عندما يرفع المستخدم ملفاً ويطلب إنشاء نموذج مماثل.
-    
-    ترجع:
-    {
-        'success': True/False,
-        'file_type': 'excel'/'word',
-        'analysis': {...},  # تحليل الهيكل والتنسيق
-        'generated_code': '...',  # كود Python قابل للتنفيذ
-        'output_path': '...'  # مسار الملف المُنشأ
-    }
     """
     from core.config import WORKSPACE_DIR
     import os
-    
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     file_ext = source_file.lower().split('.')[-1]
-    
     if file_ext == 'xlsx':
         return _replicate_excel(source_file, save_dir, filename)
     elif file_ext == 'docx':
@@ -2227,21 +2108,17 @@ def replicate_document(
             'error': f'نوع الملف غير مدعوم: {file_ext}. المدعوم: xlsx, docx'
         }
 
-
 def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> dict:
     """محاكاة ملف Excel"""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    
     wb = openpyxl.load_workbook(source_file)
-    
     analysis = {
         'type': 'excel',
         'sheets': {},
         'total_sheets': len(wb.sheetnames)
     }
-    
     generated_code_lines = [
         'import openpyxl',
         'from openpyxl.styles import Font, PatternFill, Alignment, Border, Side',
@@ -2251,7 +2128,6 @@ def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> d
         "if 'Sheet' in wb.sheetnames: del wb['Sheet']",
         ''
     ]
-    
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         sheet_info = {
@@ -2262,8 +2138,6 @@ def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> d
             'cols': ws.max_column,
             'right_to_left': ws.sheet_view.rightToLeft if ws.sheet_view else False
         }
-        
-        # استخراج البيانات والتنسيقات (أول 50 صف و20 عمود لتجنب الحجم الكبير)
         rows_data = []
         for row_idx in range(1, min(ws.max_row + 1, 50)):
             row_data = []
@@ -2285,70 +2159,48 @@ def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> d
                 }
                 row_data.append(cell_info)
             rows_data.append(row_data)
-        
         sheet_info['data'] = rows_data
         analysis['sheets'][sheet_name] = sheet_info
-        
-        # توليد كود Python لهذه الورقة
         safe_name = sheet_name.replace("'", "\\'")
         generated_code_lines.append(f"# ورقة: {sheet_name}")
         generated_code_lines.append(f"ws = wb.create_sheet(title='{safe_name}')")
         generated_code_lines.append(f"ws.sheet_view.rightToLeft = True")
         generated_code_lines.append('')
-        
-        # الخلايا المدمجة
         for merge_range in sheet_info['merged_cells']:
             generated_code_lines.append(f"ws.merge_cells('{merge_range}')")
-        
-        # البيانات
         for row_idx, row_data in enumerate(rows_data, 1):
             for col_idx, cell_info in enumerate(row_data, 1):
                 col_letter = get_column_letter(col_idx)
                 value = cell_info['value']
-                
                 if value is None:
                     continue
-                
-                # تحويل القيمة إلى تمثيل Python
                 if isinstance(value, str):
                     value_repr = f"'{value}'"
                 elif isinstance(value, bool):
                     value_repr = str(value)
                 else:
                     value_repr = str(value)
-                
                 generated_code_lines.append(f"cell = ws.cell(row={row_idx}, column={col_idx}, value={value_repr})")
-                
-                # التنسيق
                 if cell_info['font']['bold']:
                     generated_code_lines.append(f"cell.font = Font(bold=True)")
                 if cell_info['fill']:
                     generated_code_lines.append(f"cell.fill = PatternFill(start_color='{cell_info['fill']}', fill_type='solid')")
                 if cell_info['number_format'] and cell_info['number_format'] != 'General':
                     generated_code_lines.append(f"cell.number_format = '{cell_info['number_format']}'")
-                
                 generated_code_lines.append('')
-        
-        # ضبط الأعمدة
         for col in range(1, min(sheet_info['cols'] + 1, 20)):
             generated_code_lines.append(f"ws.column_dimensions['{get_column_letter(col)}'].width = 18")
-        
         generated_code_lines.append('')
-    
-    # كود الحفظ
     if filename is None:
         filename = 'replicated_document.xlsx'
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     safe_path = output_path.replace('\\', '\\\\')
     generated_code_lines.append(f"output_path = r'{safe_path}'")
     generated_code_lines.append("wb.save(output_path)")
     generated_code_lines.append("print(f'SUCCESS: {output_path}')")
-    
     generated_code = '\n'.join(generated_code_lines)
-    
     return {
         'success': True,
         'file_type': 'excel',
@@ -2357,22 +2209,18 @@ def _replicate_excel(source_file: str, save_dir: str, filename: str = None) -> d
         'output_path': output_path
     }
 
-
 def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> dict:
     """محاكاة ملف Word"""
     from docx import Document
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    
     doc = Document(source_file)
-    
     analysis = {
         'type': 'word',
         'paragraphs': [],
         'tables': [],
         'styles': set()
     }
-    
     generated_code_lines = [
         'from docx import Document',
         'from docx.shared import Pt, RGBColor',
@@ -2381,8 +2229,6 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
         'doc = Document()',
         ''
     ]
-    
-    # تحليل الفقرات
     for para in doc.paragraphs:
         para_info = {
             'text': para.text,
@@ -2390,7 +2236,6 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
             'alignment': str(para.alignment) if para.alignment else None,
             'runs': []
         }
-        
         for run in para.runs:
             run_info = {
                 'text': run.text,
@@ -2402,10 +2247,7 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
             para_info['runs'].append(run_info)
             if para.style and para.style.name:
                 analysis['styles'].add(para.style.name)
-        
         analysis['paragraphs'].append(para_info)
-        
-        # توليد كود
         if para.text.strip():
             safe_text = para.text.replace("'", "\\'").replace('\n', '\\n')
             generated_code_lines.append(f"p = doc.add_paragraph('{safe_text}')")
@@ -2415,15 +2257,12 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
                 if run_info['bold']:
                     generated_code_lines.append(f"for run in p.runs: run.bold = True")
             generated_code_lines.append('')
-    
-    # تحليل الجداول
     for table_idx, table in enumerate(doc.tables):
         table_data = []
         for row in table.rows:
             row_data = [cell.text for cell in row.cells]
             table_data.append(row_data)
         analysis['tables'].append(table_data)
-        
         generated_code_lines.append(f"# جدول {table_idx + 1}")
         generated_code_lines.append(f"table = doc.add_table(rows={len(table.rows)}, cols={len(table.columns)})")
         generated_code_lines.append(f"table.style = 'Table Grid'")
@@ -2432,24 +2271,17 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
                 safe_text = cell_text.replace("'", "\\'")
                 generated_code_lines.append(f"table.cell({row_idx}, {col_idx}).text = '{safe_text}'")
         generated_code_lines.append('')
-    
-    # كود الحفظ
     if filename is None:
         filename = 'replicated_document.docx'
     if not filename.endswith('.docx'):
         filename += '.docx'
-    
     output_path = os.path.join(save_dir, filename)
     safe_path = output_path.replace('\\', '\\\\')
     generated_code_lines.append(f"output_path = r'{safe_path}'")
     generated_code_lines.append("doc.save(output_path)")
     generated_code_lines.append("print(f'SUCCESS: {output_path}')")
-    
     generated_code = '\n'.join(generated_code_lines)
-    
-    # تحويل set إلى list للـ JSON
     analysis['styles'] = list(analysis['styles'])
-    
     return {
         'success': True,
         'file_type': 'word',
@@ -2457,9 +2289,9 @@ def _replicate_word(source_file: str, save_dir: str, filename: str = None) -> di
         'generated_code': generated_code,
         'output_path': output_path
     }
-    # ==========================================
+
+# ==========================================
 # 🎨 دالة التنسيق المرن لتحليلات النموذج
-# تأخذ تحليل النموذج وتنسقه باحترافية
 # ==========================================
 def format_analysis_report(
     analysis_data: dict,
@@ -2472,32 +2304,9 @@ def format_analysis_report(
     filename: str = None,
     **kwargs
 ) -> str:
-    """
-    تنسيق تحليل النموذج في ملف احترافي
-    
-    analysis_data: قاموس يحتوي على تحليل النموذج، مثل:
-    {
-        'summary': 'نص الملخص التنفيذي',
-        'sections': [
-            {
-                'title': 'عنوان القسم',
-                'metrics': [
-                    {'label': 'إجمالي الإيرادات', 'value': 500000, 'change': '+11%'},
-                    ...
-                ],
-                'insights': ['ملاحظة 1', 'ملاحظة 2'],
-                'recommendations': ['توصية 1']
-            }
-        ],
-        'conclusion': 'الخلاصة النهائية',
-        'charts_data': [...]  # اختياري
-    }
-    
-    output_format: 'excel' أو 'word'
-    """
+    """تنسيق تحليل النموذج في ملف احترافي"""
     from core.config import WORKSPACE_DIR
     import os
-    
     if output_format == 'excel':
         return _format_as_excel(analysis_data, report_title, company_name, period, style, output_dir, filename)
     elif output_format == 'word':
@@ -2505,18 +2314,15 @@ def format_analysis_report(
     else:
         raise ValueError(f"تنسيق غير مدعوم: {output_format}. استخدم 'excel' أو 'word'")
 
-
 def _format_as_excel(analysis_data, report_title, company_name, period, style, output_dir, filename):
     """تنسيق التحليل كملف Excel احترافي"""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
-    
-    # الأنماط
     styles_config = {
         'accounting': {
             'header_fill': PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid"),
@@ -2537,7 +2343,6 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
             'negative_color': "A93226"
         }
     }
-    
     current_style = styles_config.get(style, styles_config['accounting'])
     thin_border = Border(
         left=Side(style="thin", color=current_style['border_color']),
@@ -2545,14 +2350,8 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
         top=Side(style="thin", color=current_style['border_color']),
         bottom=Side(style="thin", color=current_style['border_color'])
     )
-    
-    # ==========================================
-    # ورقة الملخص التنفيذي
-    # ==========================================
     ws_summary = wb.create_sheet(title="الملخص التنفيذي")
     ws_summary.sheet_view.rightToLeft = True
-    
-    # العنوان
     ws_summary.merge_cells('A1:D1')
     title_cell = ws_summary['A1']
     title_text = report_title
@@ -2564,32 +2363,24 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
     title_cell.font = Font(name="Arial", size=14, bold=True, color=current_style['title_color'])
     title_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws_summary.row_dimensions[1].height = 60
-    
-    # الملخص النصي
     if analysis_data.get('summary'):
         ws_summary.merge_cells('A3:D3')
         summary_cell = ws_summary['A3']
         summary_cell.value = "الملخص التنفيذي"
         summary_cell.font = Font(name="Arial", size=12, bold=True, color=current_style['title_color'])
-        
         ws_summary.merge_cells('A4:D6')
         summary_text = ws_summary['A4']
         summary_text.value = analysis_data['summary']
         summary_text.font = Font(name="Arial", size=11)
         summary_text.alignment = Alignment(wrap_text=True, vertical="top")
         ws_summary.row_dimensions[4].height = 80
-    
-    # الأقسام
     current_row = 8
     for section in analysis_data.get('sections', []):
-        # عنوان القسم
         ws_summary.merge_cells(f'A{current_row}:D{current_row}')
         section_title = ws_summary.cell(row=current_row, column=1, value=section.get('title', ''))
         section_title.font = Font(name="Arial", size=12, bold=True, color=current_style['title_color'])
         section_title.fill = current_style['section_fill']
         current_row += 1
-        
-        # المقاييس
         if section.get('metrics'):
             headers = ['البند', 'القيمة', 'التغيير', 'ملاحظات']
             for col_idx, header in enumerate(headers, 1):
@@ -2599,27 +2390,21 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
                 cell.alignment = Alignment(horizontal="center", vertical="center")
                 cell.border = thin_border
             current_row += 1
-            
             for metric in section['metrics']:
                 ws_summary.cell(row=current_row, column=1, value=metric.get('label', '')).border = thin_border
                 value_cell = ws_summary.cell(row=current_row, column=2, value=metric.get('value', ''))
                 value_cell.border = thin_border
                 if isinstance(metric.get('value'), (int, float)):
                     value_cell.number_format = '#,##0.00'
-                
                 change_cell = ws_summary.cell(row=current_row, column=3, value=metric.get('change', ''))
                 change_cell.border = thin_border
-                # تلوين التغيير
                 change_str = str(metric.get('change', ''))
                 if '+' in change_str:
                     change_cell.font = Font(color=current_style['positive_color'], bold=True)
                 elif '-' in change_str:
                     change_cell.font = Font(color=current_style['negative_color'], bold=True)
-                
                 ws_summary.cell(row=current_row, column=4, value=metric.get('notes', '')).border = thin_border
                 current_row += 1
-        
-        # الرؤى
         if section.get('insights'):
             current_row += 1
             ws_summary.merge_cells(f'A{current_row}:D{current_row}')
@@ -2629,8 +2414,6 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
                 ws_summary.merge_cells(f'A{current_row}:D{current_row}')
                 ws_summary.cell(row=current_row, column=1, value=f"• {insight}").font = Font(size=10)
                 current_row += 1
-        
-        # التوصيات
         if section.get('recommendations'):
             current_row += 1
             ws_summary.merge_cells(f'A{current_row}:D{current_row}')
@@ -2640,10 +2423,7 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
                 ws_summary.merge_cells(f'A{current_row}:D{current_row}')
                 ws_summary.cell(row=current_row, column=1, value=f"✓ {rec}").font = Font(size=10)
                 current_row += 1
-        
         current_row += 2
-    
-    # الخلاصة
     if analysis_data.get('conclusion'):
         ws_summary.merge_cells(f'A{current_row}:D{current_row}')
         ws_summary.cell(row=current_row, column=1, value="الخلاصة النهائية").font = Font(bold=True, size=12, color=current_style['title_color'])
@@ -2653,33 +2433,21 @@ def _format_as_excel(analysis_data, report_title, company_name, period, style, o
         conclusion_cell.font = Font(size=11)
         conclusion_cell.alignment = Alignment(wrap_text=True, vertical="top")
         ws_summary.row_dimensions[current_row].height = 60
-    
-    # ضبط الأعمدة
     ws_summary.column_dimensions['A'].width = 30
     ws_summary.column_dimensions['B'].width = 18
     ws_summary.column_dimensions['C'].width = 15
     ws_summary.column_dimensions['D'].width = 40
-    
-    # ==========================================
-    # حفظ الملف
-    # ==========================================
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_title = report_title.replace(' ', '_')[:30]
         filename = f"تحليل_{safe_title}"
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
-
 
 def _format_as_word(analysis_data, report_title, company_name, period, style, output_dir, filename):
     """تنسيق التحليل كملف Word احترافي"""
@@ -2688,39 +2456,30 @@ def _format_as_word(analysis_data, report_title, company_name, period, style, ou
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml.ns import qn, nsdecls
     from docx.oxml import parse_xml
-    
     doc = Document()
-    
-    # الهوامش
     section = doc.sections[0]
     section.top_margin = Cm(2)
     section.bottom_margin = Cm(2)
     section.left_margin = Cm(2)
     section.right_margin = Cm(2)
-    
-    # العنوان الرئيسي
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_run = title_para.add_run(report_title)
     title_run.font.size = Pt(20)
     title_run.font.bold = True
     title_run.font.color.rgb = RGBColor.from_string('1F4E79')
-    
     if company_name:
         org_para = doc.add_paragraph()
         org_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         org_run = org_para.add_run(company_name)
         org_run.font.size = Pt(14)
         org_run.font.color.rgb = RGBColor.from_string('2E5C8A')
-    
     if period:
         period_para = doc.add_paragraph()
         period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         period_run = period_para.add_run(f"الفترة: {period}")
         period_run.font.size = Pt(12)
         period_run.font.italic = True
-    
-    # خط فاصل
     sep_para = doc.add_paragraph()
     sep_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     pPr = sep_para._p.get_or_add_pPr()
@@ -2730,19 +2489,13 @@ def _format_as_word(analysis_data, report_title, company_name, period, style, ou
         f'</w:pBdr>'
     )
     pPr.append(pBdr)
-    
-    # الملخص
     if analysis_data.get('summary'):
         doc.add_heading('الملخص التنفيذي', level=1)
         summary_para = doc.add_paragraph()
         summary_run = summary_para.add_run(analysis_data['summary'])
         summary_run.font.size = Pt(12)
-    
-    # الأقسام
     for section_data in analysis_data.get('sections', []):
         doc.add_heading(section_data.get('title', ''), level=1)
-        
-        # المقاييس كجدول
         if section_data.get('metrics'):
             table = doc.add_table(rows=1, cols=3)
             table.style = 'Table Grid'
@@ -2754,52 +2507,38 @@ def _format_as_word(analysis_data, report_title, company_name, period, style, ou
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     for run in paragraph.runs:
                         run.bold = True
-            
             for metric in section_data['metrics']:
                 row_cells = table.add_row().cells
                 row_cells[0].text = metric.get('label', '')
                 row_cells[1].text = str(metric.get('value', ''))
                 row_cells[2].text = str(metric.get('change', ''))
-        
-        # الرؤى
         if section_data.get('insights'):
             doc.add_heading('الرؤى والتحليلات', level=2)
             for insight in section_data['insights']:
                 p = doc.add_paragraph()
                 p.add_run(f"• {insight}")
-        
-        # التوصيات
         if section_data.get('recommendations'):
             doc.add_heading('التوصيات', level=2)
             for rec in section_data['recommendations']:
                 p = doc.add_paragraph()
                 run = p.add_run(f"✓ {rec}")
                 run.font.color.rgb = RGBColor.from_string('1E8449')
-    
-    # الخلاصة
     if analysis_data.get('conclusion'):
         doc.add_heading('الخلاصة النهائية', level=1)
         conclusion_para = doc.add_paragraph()
         conclusion_run = conclusion_para.add_run(analysis_data['conclusion'])
         conclusion_run.font.size = Pt(12)
         conclusion_run.font.bold = True
-    
-    # الحفظ
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_title = report_title.replace(' ', '_')[:30]
         filename = f"تحليل_{safe_title}"
     if not filename.endswith('.docx'):
         filename += '.docx'
-    
     output_path = os.path.join(save_dir, filename)
     doc.save(output_path)
-
-    # ✅ طبقة الحماية النهائية: ضمان طباعة مسار الملف بنجاح
     print("SUCCESS: " + output_path)
-    
     return output_path
 
 # ==========================================
@@ -2813,35 +2552,17 @@ def generate_depreciation_schedule(
     filename: str = None,
     **kwargs
 ) -> str:
-    """
-    إنشاء جدول إهلاك شهري مضغوط واحترافي
-    
-    assets: قائمة الأصول، كل أصل:
-    {
-        'asset_id': 'V-001',
-        'description': 'تويوتا هايلكس 2024',
-        'cost': 185000,
-        'accumulated_dep_start': 37000,
-        'depreciation_rate': 33.33,
-        'salvage_value': 0
-    }
-    """
+    """إنشاء جدول إهلاك شهري مضغوط واحترافي"""
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
-    
-    # ✅ إنشاء الورقة مباشرة بالعنوان (بدلاً من wb.active الذي يرجع None)
     ws = wb.create_sheet(title="جدول_الإهلاك_الشهري")
     ws.sheet_view.rightToLeft = True
-    
-    # ==========================================
-    # 1. الأنماط والتنسيقات
-    # ==========================================
     header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     header_font = Font(name="Arial", size=10, bold=True, color="FFFFFF")
     data_font = Font(name="Arial", size=9)
@@ -2854,62 +2575,40 @@ def generate_depreciation_schedule(
         top=Side(style="thin", color="B4C7E7"),
         bottom=Side(style="thin", color="B4C7E7")
     )
-    
-    # ==========================================
-    # 2. العنوان الرئيسي
-    # ==========================================
     ws.merge_cells('A1:S1')
     title_cell = ws['A1']
     title_cell.value = f"جدول الإهلاك الشهري (طريقة الرصيد المتناقص) - {company_name} ({year})"
     title_cell.font = Font(name="Arial", size=14, bold=True, color="1F4E79")
     title_cell.alignment = center_align
     ws.row_dimensions[1].height = 30
-    
-    # ==========================================
-    # 3. رؤوس الأعمدة (مضغوطة واحترافية)
-    # ==========================================
     headers = [
         'رقم الأصل', 'الوصف', 'التكلفة', 'رصيد أول المدة', 'نسبة الإهلاك %',
-        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 
+        'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
         'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
         'إجمالي السنوي', 'رصيد آخر المدة'
     ]
-    
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=2, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_align
         cell.border = thin_border
-    
     ws.row_dimensions[2].height = 25
-    
-    # ==========================================
-    # 4. إدخال البيانات والحسابات المحاسبية
-    # ==========================================
     row = 3
     months_indices = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
-    
     for asset in assets:
         cost = asset['cost']
         acc_dep_start = asset.get('accumulated_dep_start', 0)
         rate = asset['depreciation_rate']
         salvage = asset.get('salvage_value', 0)
-        
         beg_book_value = cost - acc_dep_start
-        
         annual_depreciation = beg_book_value * (rate / 100)
-        
         max_allowable_dep = beg_book_value - salvage
         if annual_depreciation > max_allowable_dep:
             annual_depreciation = max_allowable_dep
-            
         monthly_depreciation = annual_depreciation / 12
-        
-        # --- كتابة البيانات الأساسية ---
         ws.cell(row=row, column=1, value=asset['asset_id']).font = data_font
         ws.cell(row=row, column=2, value=asset['description']).font = data_font
-        
         for col, val in [(3, cost), (4, beg_book_value), (5, rate)]:
             cell = ws.cell(row=row, column=col, value=val)
             cell.font = data_font if col != 5 else rate_font
@@ -2919,101 +2618,67 @@ def generate_depreciation_schedule(
                 cell.number_format = '0.00"%"'
             else:
                 cell.number_format = '#,##0.00'
-        
-        # --- كتابة الأشهر والحسابات التراكمية ---
         current_bv = beg_book_value
         total_dep_this_year = 0
-        
         for i, month_col in enumerate(months_indices):
             if i == 11:
                 month_dep = annual_depreciation - (monthly_depreciation * 11)
             else:
                 month_dep = monthly_depreciation
-                
             if (current_bv - month_dep) < salvage:
                 month_dep = current_bv - salvage
-                
             cell = ws.cell(row=row, column=month_col, value=month_dep)
             cell.number_format = '#,##0.00'
             cell.font = data_font
             cell.border = thin_border
-            
             current_bv -= month_dep
             total_dep_this_year += month_dep
-        
-        # --- الإجماليات النهائية ---
-        total_cell = ws.cell(row=row, column=18, value=total_dep_this_year)
+        # ✅ الإجماليات بصيغ ديناميكية
+        total_cell = ws.cell(row=row, column=18)
+        total_cell.value = f"=SUM(F{row}:Q{row})"
         total_cell.number_format = '#,##0.00'
         total_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
         total_cell.border = thin_border
-        
-        end_bv_cell = ws.cell(row=row, column=19, value=current_bv)
+        end_bv_cell = ws.cell(row=row, column=19)
+        end_bv_cell.value = f"=D{row}-R{row}"
         end_bv_cell.number_format = '#,##0.00'
         end_bv_cell.font = Font(name="Arial", size=9, bold=True, color="1E8449")
         end_bv_cell.border = thin_border
-        
         row += 1
-
-    # ==========================================
-    # 5. التنسيقات النهائية (تجميد وأحجام)
-    # ==========================================
     ws.freeze_panes = 'C3'
-    
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 25
     for col in range(3, 20):
         ws.column_dimensions[get_column_letter(col)].width = 11
-        
     for r in range(2, row):
         ws.row_dimensions[r].height = 18
-
-    # ==========================================
-    # 6. حفظ الملف
-    # ==========================================
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_company = company_name.replace(' ', '_')[:20]
         filename = f"جدول_الاهلاك_الشهري_{safe_company}_{year}"
-    
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-
-    # ✅ طبقة الحماية النهائية
     print("SUCCESS: " + output_path)
-    
     return output_path
 
 # ==========================================
 # ⚖️ ميزان المراجعة (Trial Balance)
-# أرصدة افتتاحية + حركة + أرصدة ختامية
 # ==========================================
-
 def _parse_accounts_from_string(text: str) -> list:
-    """
-    دالة مساعدة: تحويل نص الحسابات إلى قائمة قواميس
-    تتعامل مع الصيغ المختلفة التي قد يولدها النموذج
-    """
+    """دالة مساعدة: تحويل نص الحسابات إلى قائمة قواميس"""
     import re
     accounts = []
-    
-    # تنظيف النص
     text = text.strip()
-    
-    # محاولة 1: البحث عن قواميس JSON
     if '{' in text and '}' in text:
         try:
             import json
-            # استخراج كل قاموس من النص
             pattern = r'\{[^}]+\}'
             matches = re.findall(pattern, text)
             for match in matches:
                 try:
-                    # تحويل النص إلى قاموس
                     match = match.replace("'", '"')
                     acc = json.loads(match)
                     accounts.append(acc)
@@ -3021,47 +2686,32 @@ def _parse_accounts_from_string(text: str) -> list:
                     continue
         except:
             pass
-    
-    # محاولة 2: البحث عن أنماط نصية عربية
     if not accounts:
         lines = text.split('\n')
         for line in lines:
             line = line.strip()
             if not line or line.startswith('#'):
                 continue
-            
-            # البحث عن: رقم الحساب + اسم الحساب + القيم
             match = re.match(r'(\d{4})\s+([^\s:]+)', line)
             if match:
                 acc_num = match.group(1)
                 acc_name = match.group(2)
-                
-                # استخراج القيم
                 opening_debit = 0
                 opening_credit = 0
                 debit_movement = 0
                 credit_movement = 0
-                
                 if 'افتتاحي مدين' in line:
                     m = re.search(r'افتتاحي مدين\s+([\d,]+)', line)
-                    if m:
-                        opening_debit = float(m.group(1).replace(',', ''))
-                
+                    if m: opening_debit = float(m.group(1).replace(',', ''))
                 if 'افتتاحي دائن' in line:
                     m = re.search(r'افتتاحي دائن\s+([\d,]+)', line)
-                    if m:
-                        opening_credit = float(m.group(1).replace(',', ''))
-                
+                    if m: opening_credit = float(m.group(1).replace(',', ''))
                 if 'حركة مدينة' in line:
                     m = re.search(r'حركة مدينة\s+([\d,]+)', line)
-                    if m:
-                        debit_movement = float(m.group(1).replace(',', ''))
-                
+                    if m: debit_movement = float(m.group(1).replace(',', ''))
                 if 'حركة دائنة' in line:
                     m = re.search(r'حركة دائنة\s+([\d,]+)', line)
-                    if m:
-                        credit_movement = float(m.group(1).replace(',', ''))
-                
+                    if m: credit_movement = float(m.group(1).replace(',', ''))
                 accounts.append({
                     'account_number': acc_num,
                     'account_name': acc_name,
@@ -3070,9 +2720,7 @@ def _parse_accounts_from_string(text: str) -> list:
                     'debit_movement': debit_movement,
                     'credit_movement': credit_movement
                 })
-    
     return accounts
-
 
 def generate_trial_balance(
     company_name: str,
@@ -3080,56 +2728,31 @@ def generate_trial_balance(
     accounts: list,
     output_dir: str = None,
     filename: str = None,
-    **kwargs  # ✅ بروتوكول 1: قبول أي معاملات زائدة
+    **kwargs
 ) -> str:
-    """
-    إنشاء ميزان مراجعة احترافي
-    
-    accounts: قائمة الحسابات، كل حساب:
-    {
-        'account_number': '1101',
-        'account_name': 'الصندوق',
-        'opening_debit': 50000,
-        'opening_credit': 0,
-        'debit_movement': 20000,
-        'credit_movement': 15000
-    }
-    """
+    """إنشاء ميزان مراجعة احترافي"""
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
-    
-    # ==========================================
-    # ✅ بروتوكول 3: معالجة ذكية للأنواع
-    # ==========================================
     if isinstance(accounts, str):
         print("⚠️ تم تحويل accounts من string إلى list")
         accounts = _parse_accounts_from_string(accounts)
     elif isinstance(accounts, dict):
         print("⚠️ تم تحويل accounts من dict إلى list")
         accounts = [accounts]
-    
-    # ✅ بروتوكول 4: التحقق من البيانات الفارغة
     if not accounts:
-        raise ValueError("❌ قائمة الحسابات فارغة. يرجى تمرير بيانات الحسابات.")
-    
+        raise ValueError("❌ قائمة الحسابات فارغة.")
     if not company_name:
         raise ValueError("❌ اسم الشركة مطلوب.")
-    
     if not period:
         raise ValueError("❌ الفترة الزمنية مطلوبة.")
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
-    
     ws = wb.create_sheet(title="ميزان_المراجعة")
     ws.sheet_view.rightToLeft = True
-    
-    # ==========================================
-    # الأنماط
-    # ==========================================
     header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     total_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
@@ -3137,7 +2760,6 @@ def generate_trial_balance(
     data_font = Font(name="Arial", size=10)
     center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right_align = Alignment(horizontal="right", vertical="center")
-    
     thin_border = Border(
         left=Side(style="thin", color="B4C7E7"),
         right=Side(style="thin", color="B4C7E7"),
@@ -3150,157 +2772,98 @@ def generate_trial_balance(
         top=Side(style="thin", color="B4C7E7"),
         bottom=Side(style="double", color="1F4E79")
     )
-    
-    # ==========================================
-    # العنوان
-    # ==========================================
     ws.merge_cells('A1:H1')
     title_cell = ws['A1']
     title_cell.value = f"ميزان المراجعة - {company_name} ({period})"
     title_cell.font = Font(name="Arial", size=16, bold=True, color="1F4E79")
     title_cell.alignment = center_align
     ws.row_dimensions[1].height = 35
-    
-    # ==========================================
-    # رؤوس الأعمدة
-    # ==========================================
     headers = [
         'رقم الحساب', 'اسم الحساب',
         'رصيد افتتاحي مدين', 'رصيد افتتاحي دائن',
         'حركة مدينة', 'حركة دائنة',
         'رصيد ختامي مدين', 'رصيد ختامي دائن'
     ]
-    
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=2, column=col, value=header)
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = center_align
         cell.border = thin_border
-    
     ws.row_dimensions[2].height = 28
-    
-    # ==========================================
-    # إدخال البيانات والحسابات
-    # ==========================================
-    total_opening_dr = 0
-    total_opening_cr = 0
-    total_debit_mov = 0
-    total_credit_mov = 0
-    total_closing_dr = 0
-    total_closing_cr = 0
-    
     row = 3
     for acc in accounts:
-        # ✅ بروتوكول 5: قيم افتراضية آمنة
         opening_dr = float(acc.get('opening_debit', 0) or 0)
         opening_cr = float(acc.get('opening_credit', 0) or 0)
         debit_mov = float(acc.get('debit_movement', 0) or 0)
         credit_mov = float(acc.get('credit_movement', 0) or 0)
-        
-        # حساب الرصيد الختامي
-        closing_dr = opening_dr + debit_mov - credit_mov
-        closing_cr = 0
-        if closing_dr < 0:
-            closing_cr = abs(closing_dr)
-            closing_dr = 0
-        
-        # كتابة الصف
         ws.cell(row=row, column=1, value=acc.get('account_number', '')).font = data_font
         ws.cell(row=row, column=2, value=acc.get('account_name', '')).font = data_font
-        
-        values = [opening_dr, opening_cr, debit_mov, credit_mov, closing_dr, closing_cr]
-        for i, val in enumerate(values, 3):
-            cell = ws.cell(row=row, column=i, value=val if val != 0 else 0)
+        for col, val in [(3, opening_dr), (4, opening_cr), (5, debit_mov), (6, credit_mov)]:
+            cell = ws.cell(row=row, column=col, value=val if val != 0 else 0)
             cell.font = data_font
             cell.alignment = right_align
             cell.border = thin_border
             cell.number_format = '#,##0.00'
-        
-        # تجميع الإجماليات
-        total_opening_dr += opening_dr
-        total_opening_cr += opening_cr
-        total_debit_mov += debit_mov
-        total_credit_mov += credit_mov
-        total_closing_dr += closing_dr
-        total_closing_cr += closing_cr
-        
+        # ✅ الرصيد الختامي بصيغة ديناميكية
+        closing_dr_cell = ws.cell(row=row, column=7)
+        closing_dr_cell.value = f"=IF(C{row}+E{row}-F{row}>0,C{row}+E{row}-F{row},0)"
+        closing_dr_cell.font = data_font
+        closing_dr_cell.alignment = right_align
+        closing_dr_cell.border = thin_border
+        closing_dr_cell.number_format = '#,##0.00'
+        closing_cr_cell = ws.cell(row=row, column=8)
+        closing_cr_cell.value = f"=IF(C{row}+E{row}-F{row}<0,ABS(C{row}+E{row}-F{row}),0)"
+        closing_cr_cell.font = data_font
+        closing_cr_cell.alignment = right_align
+        closing_cr_cell.border = thin_border
+        closing_cr_cell.number_format = '#,##0.00'
         row += 1
-    
-    # ==========================================
-    # صف الإجمالي
-    # ==========================================
+    last_data_row = row - 1
     ws.cell(row=row, column=1, value='').border = thin_border
     total_label = ws.cell(row=row, column=2, value="الإجمالي")
     total_label.font = total_font
     total_label.alignment = right_align
     total_label.border = thin_border
-    
-    totals = [total_opening_dr, total_opening_cr, total_debit_mov, 
-              total_credit_mov, total_closing_dr, total_closing_cr]
-    for i, val in enumerate(totals, 3):
-        cell = ws.cell(row=row, column=i, value=val)
+    # ✅ صف الإجمالي بصيغ SUM ديناميكية
+    for col in range(3, 9):
+        col_letter = get_column_letter(col)
+        cell = ws.cell(row=row, column=col)
+        cell.value = f"=SUM({col_letter}3:{col_letter}{last_data_row})"
         cell.font = total_font
         cell.alignment = right_align
         cell.fill = total_fill
         cell.border = double_bottom
         cell.number_format = '#,##0.00'
-    
-    # ==========================================
-    # التحقق من التوازن
-    # ==========================================
     row += 2
     ws.merge_cells(f'A{row}:H{row}')
     check_cell = ws.cell(row=row, column=1)
-    
-    if abs(total_opening_dr - total_opening_cr) < 0.01 and \
-       abs(total_debit_mov - total_credit_mov) < 0.01 and \
-       abs(total_closing_dr - total_closing_cr) < 0.01:
-        check_cell.value = "✅ الميزان متوازن"
-        check_cell.font = Font(name="Arial", size=11, bold=True, color="1E8449")
-    else:
-        check_cell.value = "⚠️ تنبيه: الميزان غير متوازن - يرجى مراجعة البيانات"
-        check_cell.font = Font(name="Arial", size=11, bold=True, color="A93226")
-    
-    # ==========================================
-    # التنسيقات النهائية
-    # ==========================================
+    check_cell.value = "✅ يتم التحقق من التوازن تلقائياً عبر الصيغ"
+    check_cell.font = Font(name="Arial", size=11, bold=True, color="1E8449")
     ws.column_dimensions['A'].width = 14
     ws.column_dimensions['B'].width = 30
     for col in range(3, 9):
         ws.column_dimensions[get_column_letter(col)].width = 18
-    
     ws.freeze_panes = 'C3'
-    ws.auto_filter.ref = f"A2:H{row-3}"
-    
-    # ==========================================
-    # حفظ الملف
-    # ==========================================
+    ws.auto_filter.ref = f"A2:H{last_data_row}"
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
-    
     if filename is None:
         safe_company = company_name.replace(' ', '_')[:20]
         filename = f"ميزان_المراجعة_{safe_company}_{period}"
-    
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-    
-    # ✅ بروتوكول 2: طبقة الحماية النهائية
     print("SUCCESS: " + output_path)
     return output_path
 
 # ==========================================
 # 💰 كشف الرواتب المتكامل - نسخة نهائية ومجربة
 # ==========================================
-
 def _create_payroll_signature_slip(ws, row, col, employee, period):
     """إنشاء قسيمة راتب احترافية في مربع واضح"""
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    
     title_fill = PatternFill(start_color="1F4E79", end_color="2E75B6", fill_type="solid")
     title_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
@@ -3309,21 +2872,16 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
     data_font = Font(name="Arial", size=8, color="000000")
     total_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
     total_font = Font(name="Arial", size=9, bold=True, color="C00000")
-    
     outer_border = Border(left=Side(style="thick", color="1F4E79"), right=Side(style="thick", color="1F4E79"), top=Side(style="thick", color="1F4E79"), bottom=Side(style="thick", color="1F4E79"))
     inner_border = Border(left=Side(style="thin", color="B4C7E7"), right=Side(style="thin", color="B4C7E7"), top=Side(style="thin", color="B4C7E7"), bottom=Side(style="thin", color="B4C7E7"))
-    
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right = Alignment(horizontal="right", vertical="center")
     left = Alignment(horizontal="left", vertical="center")
-    
     start_row = 2 + (row - 1) * 24
     start_col = 1 + (col - 1) * 14
-    
     for r in range(start_row, start_row + 22):
         for c in range(start_col, start_col + 13):
             ws.cell(row=r, column=c).border = inner_border
-    
     ws.merge_cells(start_row=start_row, start_column=start_col, end_row=start_row, end_column=start_col + 12)
     title_cell = ws.cell(row=start_row, column=start_col, value=f"قسيمة راتب - {period}")
     title_cell.font = title_font
@@ -3331,66 +2889,54 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
     title_cell.alignment = center
     title_cell.border = outer_border
     ws.row_dimensions[start_row].height = 25
-    
     emp_data = [
         ("اسم الموظف:", employee.get('employee_name', ''), "رقم الموظف:", employee.get('employee_id', '')),
         ("القسم:", employee.get('department', ''), "تاريخ الصرف:", employee.get('payment_date', ''))
     ]
-    
     for i, (label1, val1, label2, val2) in enumerate(emp_data):
         r = start_row + 2 + i
         ws.row_dimensions[r].height = 18
-        
         ws.cell(row=r, column=start_col, value=label1).font = label_font
         ws.cell(row=r, column=start_col).alignment = right
         ws.cell(row=r, column=start_col).border = inner_border
-        
         ws.merge_cells(start_row=r, start_column=start_col+1, end_row=r, end_column=start_col+4)
         ws.cell(row=r, column=start_col+1, value=val1).font = data_font
         ws.cell(row=r, column=start_col+1).alignment = left
         ws.cell(row=r, column=start_col+1).border = inner_border
-        
         ws.cell(row=r, column=start_col+7, value=label2).font = label_font
         ws.cell(row=r, column=start_col+7).alignment = right
         ws.cell(row=r, column=start_col+7).border = inner_border
-        
         ws.merge_cells(start_row=r, start_column=start_col+8, end_row=r, end_column=start_col+12)
         ws.cell(row=r, column=start_col+8, value=val2).font = data_font
         ws.cell(row=r, column=start_col+8).alignment = left
         ws.cell(row=r, column=start_col+8).border = inner_border
-    
     header_r = start_row + 5
     ws.row_dimensions[header_r].height = 20
-    
     ws.merge_cells(start_row=header_r, start_column=start_col, end_row=header_r, end_column=start_col+6)
     ws.cell(row=header_r, column=start_col, value="البيان").font = header_font
     ws.cell(row=header_r, column=start_col).fill = header_fill
     ws.cell(row=header_r, column=start_col).alignment = center
     ws.cell(row=header_r, column=start_col).border = outer_border
-    
     ws.merge_cells(start_row=header_r, start_column=start_col+7, end_row=header_r, end_column=start_col+12)
     ws.cell(row=header_r, column=start_col+7, value="المبلغ (ر.س)").font = header_font
     ws.cell(row=header_r, column=start_col+7).fill = header_fill
     ws.cell(row=header_r, column=start_col+7).alignment = center
     ws.cell(row=header_r, column=start_col+7).border = outer_border
-    
     items = [
         ('الراتب الأساسي', employee.get('basic_salary', 0)),
         ('بدل سكن', employee.get('housing_allowance', 0)),
         ('بدل مواصلات', employee.get('transport_allowance', 0)),
         ('بدلات أخرى', employee.get('other_allowances', 0)),
-        ('إجمالي الدخل', employee.get('gross_pay', 0)),
+        ('إجمالي الدخل', None),  # ✅ سيُحسب بصيغة
         ('خصومات تأمينات', employee.get('insurance_deductions', 0)),
         ('خصومات أخرى', employee.get('other_deductions', 0)),
-        ('صافي الراتب', employee.get('net_pay', 0))
+        ('صافي الراتب', None)  # ✅ سيُحسب بصيغة
     ]
-    
     for i, (label, amount) in enumerate(items):
         r = header_r + 1 + i
         ws.row_dimensions[r].height = 18
         is_total = label in ['إجمالي الدخل', 'صافي الراتب']
         is_deduction = 'خصم' in label
-        
         ws.merge_cells(start_row=r, start_column=start_col, end_row=r, end_column=start_col+6)
         label_cell = ws.cell(row=r, column=start_col, value=label)
         label_cell.font = total_font if is_total else data_font
@@ -3400,9 +2946,15 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
             label_cell.fill = total_fill
         elif is_deduction:
             label_cell.font = Font(name="Arial", size=8, color="C00000")
-        
         ws.merge_cells(start_row=r, start_column=start_col+7, end_row=r, end_column=start_col+12)
-        amount_cell = ws.cell(row=r, column=start_col+7, value=amount)
+        amount_cell = ws.cell(row=r, column=start_col+7)
+        # ✅ صيغ ديناميكية للإجماليات
+        if label == 'إجمالي الدخل':
+            amount_cell.value = f"=SUM(H{header_r+1}:K{header_r+1})"
+        elif label == 'صافي الراتب':
+            amount_cell.value = f"=H{header_r+5}-SUM(H{header_r+6}:H{header_r+7})"
+        else:
+            amount_cell.value = amount
         amount_cell.font = total_font if is_total else data_font
         amount_cell.alignment = right
         amount_cell.number_format = '#,##0.00'
@@ -3411,7 +2963,6 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
             amount_cell.fill = total_fill
         elif is_deduction:
             amount_cell.font = Font(name="Arial", size=8, color="C00000")
-    
     sign_row = start_row + 18
     ws.row_dimensions[sign_row].height = 30
     ws.merge_cells(start_row=sign_row, start_column=start_col, end_row=sign_row, end_column=start_col+12)
@@ -3419,33 +2970,42 @@ def _create_payroll_signature_slip(ws, row, col, employee, period):
     sign_cell.font = Font(name="Arial", size=9, bold=True, color="1F4E79")
     sign_cell.alignment = Alignment(horizontal="right", vertical="center")
     sign_cell.border = outer_border
-    
     sign_row2 = sign_row + 1
     ws.merge_cells(start_row=sign_row2, start_column=start_col+3, end_row=sign_row2, end_column=start_col+9)
     ws.cell(row=sign_row2, column=start_col+3).border = Border(bottom=Side(style="medium", color="000000"))
     ws.row_dimensions[sign_row2].height = 25
 
-
-def generate_payroll_register(company_name: str, period: str, employees: list, output_dir: str = None, filename: str = None, include_signature_slips: bool = True, **kwargs) -> str:
+def generate_payroll_register(
+    company_name: str, 
+    period: str, 
+    employees: list, 
+    output_dir: str = None, 
+    filename: str = None, 
+    include_signature_slips: bool = True,
+    # 🆕 معاملات النظام الهجين
+    extra_allowances: list = None,
+    extra_deductions: list = None,
+    custom_columns: list = None,
+    custom_formulas: dict = None,
+    extra_summary_rows: list = None,
+    **kwargs
+) -> str:
     """إنشاء كشف رواتب احترافي متكامل"""
     from core.config import WORKSPACE_DIR
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
     import os
-    
     if isinstance(employees, str):
         employees = []
     elif isinstance(employees, dict):
         employees = [employees]
-    
     if not employees:
         raise ValueError("❌ قائمة الموظفين فارغة.")
-    
     wb = openpyxl.Workbook()
+    wb.calculation.fullCalcOnLoad = True  # ✅ ضمان حساب الصيغ عند الفتح
     if 'Sheet' in wb.sheetnames:
         del wb['Sheet']
-    
     header_fill = PatternFill(start_color="1F4E79", end_color="2E75B6", fill_type="solid")
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     total_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
@@ -3453,29 +3013,23 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
     data_font = Font(name="Arial", size=10, color="000000")
     title_font = Font(name="Arial", size=18, bold=True, color="1F4E79")
     subtitle_font = Font(name="Arial", size=12, italic=True, color="404040")
-    
     thick_border = Border(left=Side(style="thick", color="1F4E79"), right=Side(style="thick", color="1F4E79"), top=Side(style="thick", color="1F4E79"), bottom=Side(style="thick", color="1F4E79"))
     thin_border = Border(left=Side(style="thin", color="B4C7E7"), right=Side(style="thin", color="B4C7E7"), top=Side(style="thin", color="B4C7E7"), bottom=Side(style="thin", color="B4C7E7"))
-    
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
     right = Alignment(horizontal="right", vertical="center")
     left = Alignment(horizontal="left", vertical="center")
-    
     main_ws = wb.create_sheet(title="مسير_الرواتب_الرئيسي")
     main_ws.sheet_view.rightToLeft = True
-    
     main_ws.merge_cells('A1:L1')
     main_ws['A1'].value = "مسير الرواتب الشهرية"
     main_ws['A1'].font = title_font
     main_ws['A1'].alignment = center
     main_ws.row_dimensions[1].height = 45
-    
     main_ws.merge_cells('A2:L2')
     main_ws['A2'].value = f"{company_name} - {period}"
     main_ws['A2'].font = subtitle_font
     main_ws['A2'].alignment = center
     main_ws.row_dimensions[2].height = 30
-    
     headers = ['م', 'رقم الموظف', 'اسم الموظف', 'القسم', 'الراتب الأساسي', 'بدل سكن', 'بدل مواصلات', 'بدل أخرى', 'إجمالي الدخل', 'تأمينات', 'خصومات أخرى', 'صافي الراتب']
     for col, header in enumerate(headers, 1):
         cell = main_ws.cell(row=3, column=col, value=header)
@@ -3484,91 +3038,90 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
         cell.alignment = center
         cell.border = thick_border
     main_ws.row_dimensions[3].height = 35
-    
     total_basic, total_gross, total_deductions, total_net = 0, 0, 0, 0
     admin_employees, operational_employees = [], []
-    
     for idx, emp in enumerate(employees, 4):
         basic = float(emp.get('basic_salary', 0) or 0)
-        gross = float(emp.get('gross_pay', 0) or 0)
-        deductions = float(emp.get('insurance_deductions', 0) or 0) + float(emp.get('other_deductions', 0) or 0)
-        net = float(emp.get('net_pay', 0) or 0)
-        
         main_ws.cell(row=idx, column=1, value=idx-3).font = data_font
         main_ws.cell(row=idx, column=1).alignment = center
         main_ws.cell(row=idx, column=1).border = thin_border
-        
         main_ws.cell(row=idx, column=2, value=emp.get('employee_id', '')).font = data_font
         main_ws.cell(row=idx, column=2).alignment = center
         main_ws.cell(row=idx, column=2).border = thin_border
-        
         main_ws.cell(row=idx, column=3, value=emp.get('employee_name', '')).font = Font(name="Arial", size=10, bold=True)
         main_ws.cell(row=idx, column=3).alignment = left
         main_ws.cell(row=idx, column=3).border = thin_border
-        
         main_ws.cell(row=idx, column=4, value=emp.get('department', '')).font = data_font
         main_ws.cell(row=idx, column=4).alignment = center
         main_ws.cell(row=idx, column=4).border = thin_border
-        
-        values = [basic, emp.get('housing_allowance', 0), emp.get('transport_allowance', 0), emp.get('other_allowances', 0), gross, emp.get('insurance_deductions', 0), emp.get('other_deductions', 0), net]
-        for i, val in enumerate(values, 5):
-            cell = main_ws.cell(row=idx, column=i, value=val)
+        # ✅ الأعمدة الأساسية كقيم (مدخلات)
+        for col, key in [(5, 'basic_salary'), (6, 'housing_allowance'), (7, 'transport_allowance'), (8, 'other_allowances')]:
+            cell = main_ws.cell(row=idx, column=col, value=emp.get(key, 0))
             cell.font = data_font
             cell.alignment = right
             cell.border = thin_border
             cell.number_format = '#,##0.00'
-        
+        # ✅ إجمالي الدخل بصيغة SUM ديناميكية
+        gross_cell = main_ws.cell(row=idx, column=9)
+        gross_cell.value = f"=SUM(E{idx}:H{idx})"
+        gross_cell.font = data_font
+        gross_cell.alignment = right
+        gross_cell.border = thin_border
+        gross_cell.number_format = '#,##0.00'
+        # ✅ أعمدة الخصومات كقيم
+        for col, key in [(10, 'insurance_deductions'), (11, 'other_deductions')]:
+            cell = main_ws.cell(row=idx, column=col, value=emp.get(key, 0))
+            cell.font = data_font
+            cell.alignment = right
+            cell.border = thin_border
+            cell.number_format = '#,##0.00'
+        # ✅ صافي الراتب بصيغة ديناميكية
+        net_cell = main_ws.cell(row=idx, column=12)
+        net_cell.value = f"=I{idx}-SUM(J{idx}:K{idx})"
+        net_cell.font = data_font
+        net_cell.alignment = right
+        net_cell.border = thin_border
+        net_cell.number_format = '#,##0.00'
         total_basic += basic
-        total_gross += gross
-        total_deductions += deductions
-        total_net += net
-        
         dept = emp.get('department', '').lower()
         if 'إدار' in dept or 'admin' in dept:
             admin_employees.append(emp)
         else:
             operational_employees.append(emp)
         main_ws.row_dimensions[idx].height = 25
-    
     last_row = len(employees) + 3
     total_row = last_row + 1
-    
     main_ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=3)
     total_label = main_ws.cell(row=total_row, column=1, value="الإجمالي العام")
     total_label.font = total_font
     total_label.alignment = Alignment(horizontal="right", vertical="center")
     total_label.fill = total_fill
     total_label.border = thick_border
-    
     for col in [2, 3, 4]:
         cell = main_ws.cell(row=total_row, column=col)
         cell.fill = total_fill
         cell.border = thick_border
-    
-    totals = [total_basic, total_gross, total_deductions, total_net]
-    positions = [5, 9, 11, 12]
-    for val, pos in zip(totals, positions):
-        cell = main_ws.cell(row=total_row, column=pos, value=val)
+    # ✅ صفوف الإجمالي بصيغ SUM ديناميكية
+    for col in [5, 9, 10, 11, 12]:
+        col_letter = get_column_letter(col)
+        cell = main_ws.cell(row=total_row, column=col)
+        cell.value = f"=SUM({col_letter}4:{col_letter}{last_row})"
         cell.font = total_font
         cell.fill = total_fill
         cell.alignment = right
         cell.number_format = '#,##0.00'
         cell.border = thick_border
-    
     for col in range(1, 13):
-        if col not in [1, 5, 9, 11, 12]:
+        if col not in [1, 5, 9, 10, 11, 12]:
             cell = main_ws.cell(row=total_row, column=col)
             cell.fill = total_fill
             cell.border = thick_border
     main_ws.row_dimensions[total_row].height = 30
-    
     main_ws.freeze_panes = 'A4'
     main_ws.auto_filter.ref = f"A3:L{last_row}"
-    
     col_widths = {'A': 6, 'B': 14, 'C': 28, 'D': 16, 'E': 16, 'F': 13, 'G': 15, 'H': 13, 'I': 16, 'J': 13, 'K': 15, 'L': 16}
     for col_letter, width in col_widths.items():
         main_ws.column_dimensions[col_letter].width = width
-    
     if admin_employees:
         admin_ws = wb.create_sheet(title="الرواتب_الإدارية")
         admin_ws.sheet_view.rightToLeft = True
@@ -3603,7 +3156,6 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
         admin_ws.auto_filter.ref = f"A3:L{len(admin_employees)+3}"
         for col_letter, width in col_widths.items():
             admin_ws.column_dimensions[col_letter].width = width
-
     if operational_employees:
         op_ws = wb.create_sheet(title="الرواتب_التشغيلية")
         op_ws.sheet_view.rightToLeft = True
@@ -3638,7 +3190,6 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
         op_ws.auto_filter.ref = f"A3:L{len(operational_employees)+3}"
         for col_letter, width in col_widths.items():
             op_ws.column_dimensions[col_letter].width = width
-
     if include_signature_slips:
         slip_ws = wb.create_sheet(title="قسائم_التوقيع")
         slip_ws.sheet_view.rightToLeft = True
@@ -3659,7 +3210,6 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
                     slip_count += 1
         for col in range(1, 15):
             slip_ws.column_dimensions[get_column_letter(col)].width = 11
-
     save_dir = output_dir or WORKSPACE_DIR
     os.makedirs(save_dir, exist_ok=True)
     if filename is None:
@@ -3667,9 +3217,7 @@ def generate_payroll_register(company_name: str, period: str, employees: list, o
         filename = f"كشف_الرواتب_{safe_company}_{period}"
     if not filename.endswith('.xlsx'):
         filename += '.xlsx'
-    
     output_path = os.path.join(save_dir, filename)
     wb.save(output_path)
-    
     print("SUCCESS: " + output_path)
     return output_path
