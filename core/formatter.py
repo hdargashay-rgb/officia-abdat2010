@@ -28,9 +28,14 @@ from core.styles import (
     classify_document_type, get_recommended_styles
 )
 import re
-from table_engine import (_num, col, resolve_columns, write_table, apply_widths, warn_ignored, print_warnings,
+try:  # الملفان داخل حزمة core (الموصى به)
+    from core.table_engine import (_num, col, resolve_columns, write_table, apply_widths, warn_ignored, print_warnings,
                           sheet_ref, apply_header_formulas, add_totals_by_header)
-from formula_helpers import finalize_workbook
+    from core.formula_helpers import finalize_workbook
+except ImportError:  # أو بجانب formatter.py مباشرة
+    from table_engine import (_num, col, resolve_columns, write_table, apply_widths, warn_ignored, print_warnings,
+                          sheet_ref, apply_header_formulas, add_totals_by_header)
+    from formula_helpers import finalize_workbook
 
 # ==========================================
 # نظام الألوان الاحترافي المتقدم
@@ -951,11 +956,11 @@ ACCOUNTING_TEMPLATES = {
             {"key": "sales_returns", "title": "مردودات المبيعات", "sheet": "مردودات المبيعات", "optional": True,
              "aliases": ["مردودات ومسموحات المبيعات"]},
             {"key": "net_revenue", "title": "صافي الإيرادات", "is_formula": True, "formula": "{revenue} - {sales_returns}"},
-            {"key": "cogs", "title": "تكلفة المبيعات", "sheet": "تكلفة المبيعات",
+            {"key": "cogs", "title": "تكلفة المبيعات", "sheet": "تكلفة المبيعات", "optional": True,
              "aliases": ["تكلفة البضاعة المباعة", "تكلفة الإيرادات"]},
             {"key": "gross_profit", "title": "مجمل الربح", "is_formula": True, "formula": "{net_revenue} - {cogs}"},
             {"key": "operating_expenses", "title": "المصروفات التشغيلية", "sheet": "المصروفات التشغيلية",
-             "aliases": ["المصاريف التشغيلية", "مصروفات تشغيلية", "المصروفات الإدارية والعمومية"]},
+             "aliases": ["المصروفات", "المصاريف", "المصاريف التشغيلية", "مصروفات تشغيلية", "المصروفات الإدارية والعمومية"]},
             {"key": "operating_profit", "title": "الربح التشغيلي", "is_formula": True, "formula": "{gross_profit} - {operating_expenses}"},
             {"key": "other_income", "title": "الإيرادات الأخرى", "sheet": "الإيرادات الأخرى", "optional": True},
             {"key": "other_expenses", "title": "المصروفات الأخرى", "sheet": "المصروفات الأخرى", "optional": True},
@@ -975,7 +980,7 @@ ACCOUNTING_TEMPLATES = {
              "aliases": ["الأصول الثابتة"]},
             {"key": "total_assets", "title": "إجمالي الأصول", "is_formula": True, "formula": "{current_assets} + {non_current_assets}"},
             {"key": "current_liabilities", "title": "الخصوم المتداولة", "sheet": "الخصوم المتداولة",
-             "aliases": ["الالتزامات المتداولة"]},
+             "aliases": ["الخصوم", "الالتزامات", "الالتزامات المتداولة"]},
             {"key": "non_current_liabilities", "title": "الخصوم غير المتداولة", "sheet": "الخصوم غير المتداولة", "optional": True,
              "aliases": ["الالتزامات غير المتداولة"]},
             {"key": "total_liabilities", "title": "إجمالي الخصوم", "is_formula": True, "formula": "{current_liabilities} + {non_current_liabilities}"},
@@ -1670,11 +1675,21 @@ def generate_styled_letter(
     signatures=None,
     output_dir=None,
     filename=None,
+    closing_text=None,
+    note=None,
     **kwargs
 ):
-    """إنشاء خطاب باستخدام نظام الأنماط الديناميكي"""
+    """
+    إنشاء خطاب باستخدام نظام الأنماط الديناميكي.
+    closing_text: عبارة ختام تُكتب قبل التوقيع (اختياري). note: ملاحظة بعد التوقيع (اختياري).
+    يُنظَّف ترقيم بداية الفقرات (1- أو أ) تلقائياً.
+    """
     from core.config import WORKSPACE_DIR
-    
+
+    if isinstance(paragraphs, str):
+        paragraphs = [paragraphs]
+    paragraphs = [re.sub(r'^[\d\u0660-\u0669]+[\.\-\)]\s*', '', str(p).strip()) for p in (paragraphs or [])]
+
     doc = Document()
     setup_document(doc)
     
@@ -1685,8 +1700,19 @@ def generate_styled_letter(
     
     if table_headers and table_data:
         apply_table_style(doc, table_style, table_headers, table_data, table_caption)
-    
+
+    if closing_text:
+        _cp = doc.add_paragraph()
+        _cp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        _cp.paragraph_format.space_before = Pt(10)
+        _run = _cp.add_run(closing_text)
+        _run.font.name = FONTS['body']
+        _run.font.size = Pt(SIZES['body'])
+        set_paragraph_rtl(_cp)
+
     apply_signature_style(doc, signature_style, signatures)
+    if note:
+        add_note(doc, note)
     apply_footer_style(doc, footer_style)
     
     save_dir = output_dir or WORKSPACE_DIR
