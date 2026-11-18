@@ -1,10 +1,137 @@
 """
-Agent Loop - الحلقة الذكية للوكيل
-يستخدم نظام الأنماط الديناميكي لتصنيف المستندات واختيار الأنماط المناسبة
+Agent Loop - الحلقة الذكية للوكيل (الإصدار 3)
+
+الفكرة: لا نترك النموذج يكتب كوداً إلا عند الضرورة.
+  • طلب يطابق دالة مسجلة  → وضع الدالة: النموذج يملأ وسائط JSON فقط، والنظام يتحقق منها (توقيع الدالة) ثم ينفذ.
+                              (الخطابات تمر أولاً بـ letter_planner لصياغة خطاب ضافٍ كامل.)
+  • طلب مخصص              → وضع الكود: النموذج يكتب كوداً، وحارس AST (core.registry) يصلح الأسماء المخترعة
+                              ويرفض الدوال/الوسائط غير الموجودة والاستيرادات الخطرة قبل أي تنفيذ.
+  • بعد كل نجاح           → تحقق: هل أُنشئ ملف؟ هل ظهرت تحذيرات ⚠️؟ هل في Excel إجماليات ثابتة؟ جولة إصلاح واحدة.
+مصدر الحقيقة للدوال: core/registry.py (أضف دالة جديدة هناك فتظهر في التوجيه والموجهات والحارس).
 """
+import ast
+import json
+import os
+import re
+
 from core.llm_client import LLMClient
 from core.executor import Executor
 from core.config import MAX_AUTO_FIX_ATTEMPTS, WORKSPACE_DIR
+from core import registry as R
+
+# ==========================================================
+# 🎨 بروتوكول التنسيق (يُستخدم في وضع الكود المخصص فقط، فالدوال الجاهزة تنسّق نفسها)
+# ==========================================================
+STYLE_PROTOCOL = """
+🎨🎨🎨 بروتوكول التنسيق الاحترافي الإلزامي - يجب تطبيقه في كل ملف 🎨🎨🎨
+
+📊 للملفات Excel (openpyxl):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ الألوان الاحترافية:
+   • الأزرق الغامق 1F4E79: للعناوين الرئيسية ورؤوس الأعمدة وصف الإجمالي النهائي
+   • الأزرق المتوسط 2E5C8A: للعناوين الفرعية
+   • الأزرق الفاتح D6E4F0: للمجاميع الفرعية
+   • الأزرق الفاتح جداً E8F0F7: للتلوين المتبادل للبيانات
+   • الأبيض FFFFFF: لصفوف البيانات العادية
+   • الذهبي C9A961: للخطوط الفاصلة والتمييز
+
+2️⃣ الخطوط:
+   • العناوين: Arial, 16-18pt, Bold, لون 1F4E79
+   • رؤوس الأعمدة: Arial, 12pt, Bold, أبيض على خلفية 1F4E79
+   • البيانات: Arial, 10-11pt, عادي
+   • الإجماليات: Arial, 12pt, Bold, أبيض على خلفية 1F4E79
+
+3️⃣ أبعاد الأعمدة:
+   • عمود النصوص (البيان/الوصف): عرض 45
+   • أعمدة الأرقام: عرض 20-22
+   • أعمدة التواريخ: عرض 15
+   • أعمدة النسب المئوية: عرض 12
+
+4️⃣ الحدود (Borders):
+   • حدود رفيعة (thin) لجميع الخلايا: لون B4C7E7
+   • حدود متوسطة (medium) تحت رؤوس الأعمدة
+   • حدود مزدوجة (double) تحت صف الإجمالي النهائي
+
+5️⃣ المعادلات الحية:
+   • كل صف إجمالي يجب أن يحتوي على معادلة SUM حقيقية
+   • مثال: =SUM(B3:B10) وليس قيمة ثابتة
+   • معادلات الربط بين الأوراق: ='اسم_الورقة'!B7
+
+6️⃣ التنسيق المحاسبي:
+   • تنسيق الأرقام: '#,##0.00' (فواصل الآلاف ومنزلتان عشريتان)
+   • النسب المئوية: '0.00%'
+   • التواريخ: 'YYYY-MM-DD'
+
+7️⃣ اتجاه الورقة:
+   • RTL (من اليمين لليسار) للمستندات العربية
+   • ws.sheet_view.rightToLeft = True
+
+8️⃣ التجميد (Freeze Panes):
+   • تجميد رؤوس الأعمدة: ws.freeze_panes = 'A3' (إذا كانت الرؤوس في الصف 2)
+   • تجميد الأعمدة الأولى إذا لزم الأمر
+
+9️⃣ الفلاتر التلقائية:
+   • تفعيل AutoFilter على رؤوس الأعمدة
+   • ws.auto_filter.ref = 'A2:D20'
+
+🔟 التلوين المتبادل (Zebra Striping):
+   • الصفوف الزوجية: لون D6E4F0 (أزرق فاتح)
+   • الصفوف الفردية: لون FFFFFF (أبيض)
+   • يبدأ التلوين من أول صف بيانات
+
+📄 للمستندات Word (python-docx):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ الهوامش:
+   • جميع الهوامش: 1.8-2.0 سم
+
+2️⃣ الخطوط:
+   • العناوين: Traditional Arabic أو Simplified Arabic
+   • المحتوى: Calibri أو Arial
+   • الأرقام: Arial
+
+3️⃣ الألوان:
+   • نفس نظام الألوان المستخدم في Excel
+
+4️⃣ الجداول:
+   • رؤوس الأعمدة: خلفية 1F4E79، نص أبيض
+   • صفوف بديلة: D6E4F0 و FFFFFF
+   • حدود: Table Grid style
+
+5️⃣ الفقرات:
+   • محاذاة: RIGHT للعربية
+   • تباعد الأسطر: 1.5
+   • مسافة بعد الفقرة: 6-10pt
+
+6️⃣ الترويسة والتذييل:
+   • ترويسة: اسم المؤسسة (اختياري)
+   • تذييل: "Officia - الوكيل الذكي" + رقم الصفحة
+
+⚠️⚠️⚠️ تطبيق هذا البروتوكول إلزامي في كل ملف يتم إنشاؤه ⚠️⚠️⚠️
+"""
+
+ENGINE_CHEATSHEET = """
+🧱 أدوات جاهزة للجداول (تُنتج تنسيقاً موحداً ومعادلات حية) — فضّلها على openpyxl الخام:
+```python
+from core.table_engine import col, write_table, apply_widths
+from core.formula_helpers import finalize_workbook
+cols = [col('name', 'البيان', 'text', width=30),
+        col('qty', 'الكمية'), col('price', 'السعر'),
+        col('total', 'الإجمالي', formula='={qty}*{price}', total='sum')]   # عمود مشتق = معادلة
+info = write_table(ws, cols, rows, header_row=2)   # rows: قائمة dict بمفاتيح الأعمدة. يكتب صف إجمالي بمعادلات SUM
+apply_widths(ws, cols); finalize_workbook(wb); wb.save(path)
+```
+رموز المعادلات: {key} خلية نفس الصف | {group:اسم} أعمدة المجموعة | {key:col} نطاق العمود | {key:tot} إجمالي العمود.
+قاعدة: كل إجمالي أو عمود مشتق يُكتب معادلة Excel، لا قيمة محسوبة في Python.
+"""
+
+# دوال لا يملأ النموذج وسائطها: تُبنى من الملف المرفوع
+_FILE_ARGS = {
+    "convert_pdf_to_word": lambda p: {"pdf_path": p, "output_dir": WORKSPACE_DIR},
+    "convert_pdf_to_excel": lambda p: {"pdf_path": p, "output_dir": WORKSPACE_DIR},
+    "replicate_document": lambda p: {"source_file": p, "output_dir": WORKSPACE_DIR},
+}
 
 
 class Agent:
@@ -12,110 +139,35 @@ class Agent:
         self.llm = LLMClient()
         self.executor = Executor()
         self.max_attempts = MAX_AUTO_FIX_ATTEMPTS
+        self.max_repairs = 1          # جولات إصلاح بعد نجاح ظهرت فيه تحذيرات
         print("تم تهيئة Agent - الوكيل الذكي")
 
-    def _route_request(self, user_request: str) -> dict:
-        """دالة التوجيه الذكي الهجين: كلمات مفتاحية أولاً، ثم تصنيف ذكي بالذكاء الاصطناعي"""
-        request_lower = user_request.lower()
-        
-        routing_rules = {
-            'خطاب': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
-            'مذكرة': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
-            'رسالة رسمية': {'function': 'generate_styled_letter', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_styled_letter', 'type': 'word'},
-            'سيرة ذاتية': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv', 'type': 'word'},
-            'cv': {'function': 'generate_ats_cv', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_ats_cv', 'type': 'word'},
-            'تقرير مالي': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
-            'قائمة الدخل': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
-            'ميزان عمومية': {'function': 'generate_financial_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_financial_report', 'type': 'excel'},
-            'أصول ثابتة': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report', 'type': 'excel'},
-            'تقرير الأصول': {'function': 'create_fixed_asset_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة create_fixed_asset_report', 'type': 'excel'},
-            'جدول إهلاك': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule', 'type': 'excel'},
-            'إهلاك شهري': {'function': 'generate_depreciation_schedule', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_depreciation_schedule', 'type': 'excel'},
-            'ميزان مراجعة': {'function': 'generate_trial_balance', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_trial_balance', 'type': 'excel'},
-            'كشف رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
-            'مسير رواتب': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
-            'رواتب الموظفين': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
-            'payroll': {'function': 'generate_payroll_register', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة generate_payroll_register', 'type': 'excel'},
-            'محاكاة ملف': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document', 'type': 'file'},
-            'إعادة بناء': {'function': 'replicate_document', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة replicate_document', 'type': 'file'},
-            'تحويل pdf': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word', 'type': 'file'},
-            'pdf to word': {'function': 'convert_pdf_to_word', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_word', 'type': 'file'},
-            'pdf to excel': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel', 'type': 'file'},
-            'استخراج جداول': {'function': 'convert_pdf_to_excel', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة convert_pdf_to_excel', 'type': 'file'},
-            'تحليل نموذج': {'function': 'format_analysis_report', 'instruction': '⚠️ توجيه تلقائي: استخدم دالة format_analysis_report', 'type': 'excel'}
-        }
-        
-        for keyword, rule in routing_rules.items():
-            if keyword in request_lower:
-                return {'found': True, 'function': rule['function'], 'instruction': rule['instruction'], 'type': rule['type'], 'method': 'keyword'}
-        
-        return self._llm_classify(user_request)
+    # ======================================================
+    # 🧭 التوجيه
+    # ======================================================
+    def _route_request(self, user_request: str, uploaded_file_path: str = None) -> dict:
+        """كلمات مفتاحية (الأطول يفوز) ثم تصنيف ذكي من قائمة السجل."""
+        name = R.route_keywords(user_request, uploaded_file_path)
+        if name:
+            return {"found": True, "function": name, "type": R.REGISTRY[name]["type"], "method": "keyword",
+                    "instruction": f"⚠️ توجيه تلقائي: {name}"}
+        return self._llm_classify(user_request, uploaded_file_path)
 
-    def _llm_classify(self, user_request: str) -> dict:
-        """استخدام النموذج اللغوي لفهم نية المستخدم واختيار الدالة الأنسب"""
-        available_functions = """
-        1. generate_styled_letter: خطابات، مذكرات، ورسائل رسمية (Word).
-        2. generate_ats_cv: سير ذاتية احترافية متوافقة مع أنظمة التوظيف (Word).
-        3. generate_financial_report: تقارير مالية، قوائم دخل، وميزانيات عمومية (Excel).
-        4. create_fixed_asset_report: تقارير الأصول الثابتة وجداول الإهلاك (Excel).
-        5. generate_trial_balance: ميزان مراجعة محاسبي (أرصدة افتتاحية وحركة وختامية) (Excel).
-        6. generate_payroll_register: كشوف ورواتب ومسيرات موظفين شاملة (Excel).
-        7. convert_pdf_to_word: تحويل ملفات PDF إلى مستندات Word قابلة للتعديل.
-        8. convert_pdf_to_excel: استخراج الجداول والبيانات من ملفات PDF إلى Excel.
-        9. replicate_document: محاكاة أو إعادة بناء ملف مرفوع (Word/Excel).
-        10. format_analysis_report: تحليل بيانات نموذج Excel مرفوع وتنسيقه.
-        """
-        
-        prompt = f"""
-        أنت مصنف ذكي لنظام Officia. مهمتك هي اختيار رقم الدالة الأنسب لطلب المستخدم من القائمة أدناه.
-        
-        طلب المستخدم: "{user_request}"
-        
-        الدوال المتاحة:
-        {available_functions}
-        
-        تعليمات الإجابة:
-        - اكتب رقم الدالة الأنسب فقط (من 1 إلى 10).
-        - إذا كان الطلب لا ينطبق على أي دالة ويحتاج إلى برمجة مخصصة من الصفر، اكتب 0.
-        - لا تكتب أي شرح أو نص إضافي، فقط الرقم.
-        """
-        
+    def _llm_classify(self, user_request: str, uploaded_file_path: str = None) -> dict:
         try:
-            response = self.llm.ask(prompt).strip()
-            import re
-            numbers = re.findall(r'\d+', response)
-            if numbers:
-                selected_num = int(numbers[0])
-            else:
-                selected_num = 0
-                
-            function_map = {
-                1: 'generate_styled_letter',
-                2: 'generate_ats_cv',
-                3: 'generate_financial_report',
-                4: 'create_fixed_asset_report',
-                5: 'generate_trial_balance',
-                6: 'generate_payroll_register',
-                7: 'convert_pdf_to_word',
-                8: 'convert_pdf_to_excel',
-                9: 'replicate_document',
-                10: 'format_analysis_report'
-            }
-            
-            if selected_num in function_map:
-                func_name = function_map[selected_num]
-                return {
-                    'found': True, 
-                    'function': func_name, 
-                    'instruction': f'🧠 توجيه ذكي: تم تحليل طلبك واختيار دالة {func_name} الأنسب.', 
-                    'type': 'smart_classified',
-                    'method': 'llm'
-                }
+            response = str(self.llm.ask(R.classify_prompt(user_request, uploaded_file_path))).strip()
+            name = R.match_function_in_text(response) if not re.fullmatch(r"\W*0\W*", response) else None
+            meta = R.REGISTRY.get(name) if name else None
+            if meta and not (meta.get("needs_file") and not uploaded_file_path):
+                return {"found": True, "function": name, "type": meta["type"], "method": "llm",
+                        "instruction": f"🧠 توجيه ذكي: {name}"}
         except Exception as e:
-            print(f"⚠️ فشل التصنيف الذكي: {str(e)}")
-            
-        return {'found': False, 'function': None, 'instruction': '', 'type': 'custom', 'method': 'fallback'}
+            print(f"⚠️ فشل التصنيف الذكي: {e}")
+        return {"found": False, "function": None, "type": "custom", "method": "fallback", "instruction": ""}
 
+    # ======================================================
+    # 🚀 نقطة الدخول
+    # ======================================================
     def execute_task(self, user_request: str, uploaded_file_path: str = None) -> dict:
         print("\n" + "=" * 60)
         print("طلب المستخدم: " + user_request)
@@ -123,385 +175,276 @@ class Agent:
             print("ملف مرفوع للمعالجة: " + uploaded_file_path)
         print("=" * 60)
 
-        code_prompt = self._build_code_prompt(user_request, uploaded_file_path)
-        
+        routing = self._route_request(user_request, uploaded_file_path)
+        print(f"  -> التوجيه: {routing['function'] or 'كود مخصص'} ({routing['method']})")
+        try:
+            if routing["found"]:
+                result = self._run_function_mode(user_request, uploaded_file_path, routing["function"])
+            else:
+                result = self._run_custom_mode(user_request, uploaded_file_path)
+        except Exception as e:      # شبكة أمان أخيرة: لا نرجع None أبداً
+            result = self._failure(0, "", f"خطأ غير متوقع في الوكيل: {type(e).__name__}: {e}", [], "")
+        result.setdefault("mode", "function" if routing["found"] else "custom")
+        result.setdefault("function", routing["function"])
+        return result
+
+    # ======================================================
+    # 🧩 وضع الدالة: النموذج يملأ JSON، النظام يتحقق وينفذ
+    # ======================================================
+    def _run_function_mode(self, user_request, uploaded_file_path, fn_name):
+        meta = R.REGISTRY[fn_name]
+        if meta.get("needs_file") and not uploaded_file_path:
+            return self._failure(0, "", f"الدالة {fn_name} تتطلب ملفاً مرفوعاً.", [], "")
+
+        extras = {}
+        args = None
+        if fn_name in _FILE_ARGS:
+            args = _FILE_ARGS[fn_name](uploaded_file_path)
+        elif meta.get("planner") == "letter":
+            args = self._letter_args(user_request, extras)
+
+        best, last_error, last_args, repairs = None, "", None, 0
         for attempt in range(1, self.max_attempts + 1):
-            print(f"\n[محاولة {attempt}/{self.max_attempts}]")
-            print("  -> جاري توليد الكود...")
-            generated_code = self.llm.ask(code_prompt)
-            clean_code = self._extract_code(generated_code)
-            
-            if not clean_code:
-                print("  -> فشل استخراج الكود، إعادة المحاولة...")
-                code_prompt = self._build_fix_prompt(user_request, generated_code, "لم يتم استخراج كود Python صالح")
+            print(f"\n[محاولة {attempt}/{self.max_attempts}] وضع الدالة: {fn_name}")
+            if args is None:
+                args = self._ask_args(fn_name, user_request, uploaded_file_path, last_args, last_error)
+                if args is None:
+                    last_error = "رد النموذج ليس JSON صالحاً"
+                    continue
+            args = self._finalize_args(fn_name, args)
+            issues = R.validate_call_args(fn_name, args)
+            if issues:
+                last_error, last_args, args = "؛ ".join(issues), args, None
+                print(f"  -> وسائط غير صالحة: {last_error[:160]}")
                 continue
 
-            print("  -> جاري تنفيذ الكود عبر run_python...")
-            result = self.executor.run_python(clean_code)
-            
-            if result['success']:
-                print(f"\n✅ نجحت المهمة في المحاولة {attempt}!")
-                return {
-                    'success': True, 
-                    'attempts': attempt, 
-                    'final_output': result['output'], 
-                    'files_created': result.get('files_created', []), 
-                    'code': clean_code
-                }
-            
-            print(f"  -> فشل التنفيذ: {result['error'][:100]}")
-            if attempt < self.max_attempts:
-                code_prompt = self._build_fix_prompt(user_request, clean_code, result['error'])
-            else:
-                print(f"\n❌ فشلت المهمة بعد {self.max_attempts} محاولات")
-                return {
-                    'success': False, 
-                    'attempts': attempt, 
-                    'final_output': result['output'], 
-                    'error': result['error'], 
-                    'files_created': result.get('files_created', []), 
-                    'code': clean_code
-                }
+            code = self._call_code(fn_name, args)
+            print("  -> جاري التنفيذ...")
+            result = self.executor.run_python(code)
+            if not result["success"]:
+                last_error, last_args, args = result["error"], args, None
+                print(f"  -> فشل التنفيذ: {str(result['error'])[:100]}")
+                continue
 
-    def _build_code_prompt(self, user_request: str, uploaded_file_path: str = None) -> str:
-        routing = self._route_request(user_request)
-        routing_instruction = routing['instruction']
-        
-        if uploaded_file_path:
-            return f"""أنت وكيل ذكي متخصص في تحليل المستندات وإنشاء ملفات مشابهة.
+            problems = self._verify(result)
+            cand = self._success(attempt, result, code, problems, extras)
+            if best is None or len(problems) < len(best["warnings"]):
+                best = cand
+            if not problems or repairs >= self.max_repairs or attempt >= self.max_attempts:
+                break
+            repairs += 1
+            print(f"  -> تم التنفيذ مع {len(problems)} ملاحظة، جولة إصلاح...")
+            last_error = "نجح التنفيذ لكن ظهرت ملاحظات يجب معالجتها:\n- " + "\n- ".join(problems)
+            last_args, args = args, None
 
-📎 تم رفع ملف مرجعي: {uploaded_file_path}
-🎯 طلب المستخدم: {user_request}
+        if best:
+            print(f"\n✅ نجحت المهمة" + (" (مع ملاحظات)" if best["warnings"] else ""))
+            return best
+        print(f"\n❌ فشلت المهمة بعد {self.max_attempts} محاولات")
+        return self._failure(self.max_attempts, "", last_error, [], "")
 
-{routing_instruction}
+    def _letter_args(self, user_request, extras):
+        """الخطابات: صياغة ضافية بثلاث مراحل (ملخص → مسودة → فحص تغطية) ثم الإنشاء."""
+        try:
+            try:
+                from core.letter_planner import plan_letter
+            except ImportError:
+                from letter_planner import plan_letter
+            plan = plan_letter(user_request, self.llm.ask)
+        except Exception as e:
+            print(f"⚠️ تعذر تخطيط الخطاب ({e}); سيُملأ الخطاب بالمسار العادي")
+            return None
+        brief, draft = plan["brief"], plan["draft"]
+        extras["placeholders"] = plan["placeholders"]
+        extras["uncovered"] = plan["uncovered"]
+        if plan["placeholders"]:
+            print("  -> حقول ناقصة يجب أن يملأها المستخدم: " + "، ".join(plan["placeholders"]))
+        return {"organization_name": brief.get("sender") or "المؤسسة",
+                "title": brief.get("letter_type") or "خطاب رسمي",
+                "recipient": brief.get("recipient") or "السادة / [المرسل إليه]",
+                "subject": draft.get("subject") or brief.get("subject") or "",
+                "paragraphs": draft["paragraphs"],
+                "closing_text": draft.get("closing_text") or "وتفضلوا بقبول فائق الاحترام والتقدير،،",
+                "note": draft.get("note")}
 
-⚠️ قاعدة إلزامية: استخدم الدوال المخصصة للملفات المرفوعة من core.formatter أو core.pdf_converter.
+    def _ask_args(self, fn_name, user_request, uploaded_file_path, last_args, last_error):
+        prompt = R.function_args_prompt(fn_name, user_request, uploaded_file_path)
+        if last_error:
+            prompt += ("\n\n⚠️ المحاولة السابقة لم تنجح.\nالوسائط السابقة:\n"
+                       + json.dumps(last_args, ensure_ascii=False, default=str)[:3500]
+                       + f"\nالمشكلة: {str(last_error)[:1500]}\nأعد JSON كاملاً بعد تصحيح المشكلة.")
+        try:
+            data = R.extract_json(self.llm.ask(prompt))
+        except Exception as e:
+            print(f"  -> {e}")
+            return None
+        inner = data.get("args")
+        return inner if isinstance(inner, dict) else data
 
-📚 الدوال المتاحة:
-1️⃣ لتحويل PDF إلى Word:
-- convert_pdf_to_word(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+    def _finalize_args(self, fn_name, args):
+        """النظام يحدد مسار الإخراج، ويحذف ما يضعه النموذج هناك."""
+        args = dict(args)
+        sig = R.get_signature(fn_name)
+        if sig and "output_dir" in sig.parameters:
+            args["output_dir"] = WORKSPACE_DIR
+        return args
 
-2️⃣ لاستخراج جداول PDF إلى Excel:
-- convert_pdf_to_excel(pdf_path='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+    @staticmethod
+    def _call_code(fn_name, args):
+        module = R.REGISTRY[fn_name]["module"]
+        return (f"from {module} import {fn_name}\n"
+                f"_args = {args!r}\n"
+                f"_result = {fn_name}(**_args)\n"
+                f"_path = _result.get('output_path') if isinstance(_result, dict) else _result\n"
+                f"print('SUCCESS: ' + str(_path))\n")
 
-3️⃣ لمحاكاة ملف Word/Excel:
-- replicate_document(source_file='{uploaded_file_path}', output_dir='{WORKSPACE_DIR}')
+    # ======================================================
+    # 🛠️ وضع الكود المخصص (مع حارس AST)
+    # ======================================================
+    def _run_custom_mode(self, user_request, uploaded_file_path):
+        prompt = self._build_custom_prompt(user_request, uploaded_file_path)
+        best, last_error, last_code, repairs = None, "", "", 0
+        for attempt in range(1, self.max_attempts + 1):
+            print(f"\n[محاولة {attempt}/{self.max_attempts}] وضع الكود المخصص")
+            try:
+                generated = self.llm.ask(prompt)
+            except Exception as e:      # انقطاع/حد معدل: نحتفظ بأفضل نتيجة نجحت سابقاً
+                last_error = f"تعذر الاتصال بالنموذج: {e}"
+                print("  -> " + last_error)
+                continue
+            code = self._extract_code(generated)
+            if not code:
+                last_error = "لم يتم استخراج كود Python صالح (ضع الكود في كتلة ```python)"
+                print("  -> " + last_error)
+                prompt = self._build_fix_prompt(user_request, str(generated)[:3000], last_error)
+                continue
 
-4️⃣ لتحليل نموذج Excel:
-- format_analysis_report(analysis_data, report_title, company_name, period, output_format='excel', style='accounting', output_dir='{WORKSPACE_DIR}')
+            guard = R.check_and_fix_code(code)
+            if guard["fixes"]:
+                print("  -> إصلاح تلقائي للأسماء المخترعة: " + "؛ ".join(guard["fixes"]))
+                code = guard["code"]
+            if guard["issues"]:
+                last_error, last_code = "؛ ".join(guard["issues"]), code
+                print(f"  -> رفض الحارس: {last_error[:160]}")
+                prompt = self._build_fix_prompt(user_request, code, "رفضه الحارس قبل التنفيذ: " + last_error)
+                continue
 
-==========================================
-📝 مثال 1: تحويل PDF إلى Word
-==========================================
-```python
-from core.pdf_converter import convert_pdf_to_word
+            print("  -> جاري التنفيذ...")
+            result = self.executor.run_python(code)
+            if not result["success"]:
+                last_error, last_code = result["error"], code
+                print(f"  -> فشل التنفيذ: {str(result['error'])[:100]}")
+                if attempt < self.max_attempts:
+                    prompt = self._build_fix_prompt(user_request, code, result["error"])
+                continue
 
-output_path = convert_pdf_to_word(
-    pdf_path='{uploaded_file_path}',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + output_path)
-```
+            problems = self._verify(result)
+            cand = self._success(attempt, result, code, problems, {})
+            if best is None or len(problems) < len(best["warnings"]):
+                best = cand
+            if not problems or repairs >= self.max_repairs or attempt >= self.max_attempts:
+                break
+            repairs += 1
+            print(f"  -> تم التنفيذ مع {len(problems)} ملاحظة، جولة إصلاح...")
+            prompt = self._build_fix_prompt(
+                user_request, code, "نجح التنفيذ لكن ظهرت ملاحظات يجب معالجتها:\n- " + "\n- ".join(problems))
 
-==========================================
-📝 مثال 2: استخراج جداول من PDF إلى Excel
-==========================================
-```python
-from core.pdf_converter import convert_pdf_to_excel
+        if best:
+            print(f"\n✅ نجحت المهمة" + (" (مع ملاحظات)" if best["warnings"] else ""))
+            return best
+        print(f"\n❌ فشلت المهمة بعد {self.max_attempts} محاولات")
+        return self._failure(self.max_attempts, "", last_error, [], last_code)
 
-output_path = convert_pdf_to_excel(
-    pdf_path='{uploaded_file_path}',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + output_path)
-```
+    # ======================================================
+    # ✅ التحقق من المخرجات
+    # ======================================================
+    def _verify(self, result):
+        """مشكلات تستدعي إصلاحاً: لا ملف، تحذيرات ⚠️ من الدوال، إجماليات ثابتة في Excel."""
+        output = str(result.get("output", ""))
+        files = [f if os.path.isabs(str(f)) else os.path.join(WORKSPACE_DIR, str(f))
+                 for f in (result.get("files_created") or [])]
+        m = re.search(r"SUCCESS:\s*(.+)", output)
+        if m and m.group(1).strip() not in files and os.path.exists(m.group(1).strip()):
+            files.append(m.group(1).strip())
+        problems = []
+        if not files and "SUCCESS:" not in output:
+            problems.append("لم يُنشأ أي ملف ولم تُطبع رسالة SUCCESS")
+        problems += [l.strip() for l in output.splitlines() if l.strip().startswith("⚠️")]
+        try:
+            try:
+                from core.formula_helpers import find_hardcoded_totals
+            except ImportError:
+                from formula_helpers import find_hardcoded_totals
+            for f in files:
+                if str(f).lower().endswith(".xlsx") and os.path.exists(f):
+                    problems += [f"إجمالي ثابت بدل معادلة: {p}" for p in find_hardcoded_totals(f)[:5]]
+        except Exception:
+            pass
+        return list(dict.fromkeys(problems))
 
-==========================================
-📝 مثال 3: محاكاة ملف Word مرفوع
-==========================================
-```python
-from core.formatter import replicate_document
+    @staticmethod
+    def _success(attempt, result, code, problems, extras):
+        return {"success": True, "attempts": attempt, "final_output": result["output"],
+                "files_created": result.get("files_created", []), "code": code,
+                "warnings": problems, **extras}
 
-result = replicate_document(
-    source_file='{uploaded_file_path}',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + result['output_path'])
-```
+    @staticmethod
+    def _failure(attempts, output, error, files, code):
+        return {"success": False, "attempts": attempts, "final_output": output, "error": error,
+                "files_created": files, "code": code, "warnings": []}
 
-==========================================
-📝 مثال 4: تحليل نموذج Excel
-==========================================
-```python
-from core.formatter import format_analysis_report
+    # ======================================================
+    # 📝 الموجهات
+    # ======================================================
+    def _build_custom_prompt(self, user_request, uploaded_file_path=None):
+        file_line = f"\n📎 ملف مرفوع: {uploaded_file_path}" if uploaded_file_path else ""
+        return f"""أنت خبير في إنشاء مستندات احترافية بمعايير محاسبية وإدارية عالية.
 
-result = format_analysis_report(
-    analysis_data={{}},
-    report_title="تقرير",
-    company_name="شركة",
-    period="2026",
-    output_format='excel',
-    style='accounting',
-    output_dir='{WORKSPACE_DIR}'
-)
-print("SUCCESS: " + result['output_path'])
-```
+🎯 طلب المستخدم: {user_request}{file_line}
 
-⚠️ تحذير: ممنوع اختراع دوال. ابدأ بـ ```python وانهِ بـ ```"""
+لا توجد دالة جاهزة تطابق هذا الطلب، فاكتب كود Python كاملاً من الصفر (openpyxl / python-docx)
+واحفظ الناتج في المجلد: {WORKSPACE_DIR}  ثم اطبع: print("SUCCESS: " + output_path)
 
-        if not routing['found']:
-            return f"""أنت مبرمج Python خبير متخصص في إنشاء مستندات احترافية بمعايير محاسبية وإدارية عالية.
-🎯 طلب المستخدم: {user_request}
-⚠️ لا توجد دالة مخصصة جاهزة لهذا الطلب في مكتبة core.formatter.
-✅ الحل: اكتب كود Python كامل من الصفر لتنفيذ هذا الطلب بمعايير احترافية صارمة.
+{R.allowed_functions_prompt()}
+{ENGINE_CHEATSHEET}
+{STYLE_PROTOCOL}
 
-==========================================
-🎨 بروتوكول التنسيق الاحترافي (إلزامي):
-==========================================
-📊 للملفات Excel (openpyxl):
-1. استخدم أنماط احترافية: header_fill (لون 1F4E79), header_font (Arial, 12, bold, white), data_font (Arial, 10).
-2. أضف عنواناً رئيسياً مدمجاً في الصف الأول، ورؤوس أعمدة ملونة في الصف الثاني.
-3. استخدم تنسيق الأرقام: '#,##0.00' للأعمدة المالية.
-4. أضف صف "إجمالي" في النهاية بخط عريض.
-5. فعّل: ws.sheet_view.rightToLeft = True و ws.freeze_panes = 'A3' و ws.auto_filter.
-6. اضبط عرض الأعمدة بشكل مناسب.
+اكتب الكود الكامل الآن داخل كتلة ```python واحدة."""
 
-📄 للملفات Word (python-docx):
-1. أضف عنواناً رئيسياً بخط كبير وعريض ومحاذاة وسط.
-2. استخدم جداول منسقة (Table) للبيانات مع حدود واضحة.
-3. أضف تذييل (Footer) يحتوي على التوقيع والتاريخ.
+    def _build_fix_prompt(self, user_request, previous_code, error):
+        """موجه التصحيح (كل استدعاء للنموذج بلا ذاكرة، فنعيد القائمة المسموحة هنا)."""
+        return f"""الكود السابق لم ينجح.
 
-📁 الحفظ والطباعة:
-- احفظ الملف في: {WORKSPACE_DIR}
-- اطبع مسار الملف بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
+طلب المستخدم: {user_request}
 
-==========================================
-الآن نفذ الطلب: {user_request}
-اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
-
-        function_prompts = {
-            'generate_styled_letter': f"""أنت كاتب محترف متخصص في إنشاء الخطابات الرسمية.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_styled_letter فقط.
-📚 الدالة: generate_styled_letter(organization_name, title, recipient, subject, paragraphs, table_headers, table_data, table_caption, header_style, content_style, table_style, footer_style, signature_style, signatures, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_styled_letter
-output_path = generate_styled_letter(
-    organization_name="شركة ردينت", title="مطالبة", recipient="السيد أحمد", subject="مطالبة",
-    paragraphs=["نرجو السداد"], table_headers=["الشهر", "القيمة"], table_data=[["يوليو", "30000"]],
-    header_style='official', content_style='paragraphs', table_style='royal_blue',
-    footer_style='professional', signature_style='single',
-    signatures=[{{'name': 'المحامي عبدالله', 'title': 'المستشار'}}],
-    output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- ممنوع إضافة أرقام (1. 2. 3.) في بداية الفقرات.
-- ممنوع استخدام from docx import Document مباشرة.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_ats_cv': f"""أنت متخصص في إنشاء السير الذاتية المتوافقة مع ATS.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_ats_cv فقط.
-📚 الدالة: generate_ats_cv(full_name, phone, email, location, linkedin, summary, experience, education, skills, languages, certifications, projects, interests, objective, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_ats_cv
-output_path = generate_ats_cv(
-    full_name="أحمد محمد", phone="+966500000000", email="a@a.com", location="الرياض", linkedin="linkedin.com/in/a",
-    objective="مدير مالي", summary="خبير محاسبة",
-    experience=[{{'role': 'مدير', 'company': 'ردينت', 'date': '2020-الحاضر', 'responsibilities': ['إدارة الفريق']}}],
-    education=[{{'degree': 'بكالوريوس محاسبة', 'university': 'جامعة الملك سعود', 'year': '2014'}}],
-    skills=['إدارة الحسابات', 'Excel'], languages=[{{'name': 'العربية', 'level': 'اللغة الأم'}}],
-    certifications=[{{'name': 'CPA', 'issuer': 'الهيئة السعودية', 'year': '2019'}}],
-    projects=[{{'name': 'تطوير النظام', 'date': '2022', 'description': 'تقليل الأخطاء'}}],
-    interests=['القراءة'], output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- اكتب محتوى شاملاً وأضف دائماً: languages, certifications, projects, interests.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_financial_report': f"""أنت محاسب خبير متخصص في إنشاء التقارير المالية.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_financial_report فقط.
-📚 الدالة: generate_financial_report(report_type, company_name, period, sections, currency='ريال', include_totals=True, include_formulas=True, style='accounting', output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_financial_report
-sections_data = [{{'title': 'الإيرادات', 'headers': ['البند', 'القيمة'], 'data': [['المبيعات', 500000], {{'is_subtotal': True}}]}}]
-output_path = generate_financial_report(
-    report_type="income_statement", company_name="شركة ردينت", period="2026", sections=sections_data,
-    currency="ريال", include_totals=True, include_formulas=True, style="accounting", output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- sections يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'create_fixed_asset_report': f"""أنت محاسب خبير متخصص في إنشاء تقارير الأصول الثابتة.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة create_fixed_asset_report فقط.
-📚 الدالة: create_fixed_asset_report(company_name, year, sections, assets=None, include_depreciation_schedule=True, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import create_fixed_asset_report
-sections_data = [{{'sheet_name': 'المركبات', 'headers': ['رقم الأصل', 'الوصف', 'التكلفة', 'الإهلاك', 'الصافي'], 'data': [['V-001', 'هايلكس', 185000, 37000, 148000]]}}]
-assets_data = [{{'asset_id': 'V-001', 'description': 'هايلكس', 'category': 'المركبات', 'cost': 185000, 'accumulated_dep_start': 37000}}]
-output_path = create_fixed_asset_report(
-    company_name="شركة ردينت", year="2026", sections=sections_data, assets=assets_data,
-    include_depreciation_schedule=True, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- استخدم هذه الدالة لدمج كل الأوراق في ملف Excel واحد.
-- sections و assets يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_depreciation_schedule': f"""أنت محاسب خبير متخصص في إنشاء جداول الإهلاك.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_depreciation_schedule فقط.
-📚 الدالة: generate_depreciation_schedule(company_name, year, assets, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_depreciation_schedule
-assets_data = [{{'asset_id': 'V-001', 'description': 'هايلكس', 'cost': 185000, 'accumulated_dep_start': 37000, 'depreciation_rate': 33.33, 'salvage_value': 0}}]
-output_path = generate_depreciation_schedule(
-    company_name="شركة ردينت", year="2026", assets=assets_data, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- assets يجب أن تكون LIST من DICTS.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_trial_balance': f"""أنت محاسب خبير متخصص في إنشاء ميزان المراجعة.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_trial_balance فقط.
-📚 الدالة: generate_trial_balance(company_name, period, accounts, output_dir)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_trial_balance
-accounts_data = [
-    {{'account_number': '1101', 'account_name': 'الصندوق', 'opening_debit': 50000, 'opening_credit': 0, 'debit_movement': 120000, 'credit_movement': 95000}},
-    {{'account_number': '2101', 'account_name': 'الموردون', 'opening_debit': 0, 'opening_credit': 140000, 'debit_movement': 100000, 'credit_movement': 130000}}
-]
-output_path = generate_trial_balance(
-    company_name="شركة ردينت", period="2026", accounts=accounts_data, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة:
-- accounts يجب أن تكون LIST من DICTS، وليست string أبداً!
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```""",
-
-            'generate_payroll_register': f"""أنت محاسب خبير متخصص في إنشاء كشوف الرواتب.
-{routing_instruction}
-⚠️ قاعدة إلزامية: استخدم دالة generate_payroll_register فقط.
-📚 الدالة: generate_payroll_register(company_name, period, employees, output_dir, include_signature_slips=True)
-
-==========================================
-📝 مثال:
-```python
-from core.formatter import generate_payroll_register
-employees_data = [
-    {{'employee_id': 'EMP001', 'employee_name': 'أحمد محمد', 'department': 'إداري', 'basic_salary': 8000, 'housing_allowance': 2000, 'transport_allowance': 500, 'other_allowances': 0, 'gross_pay': 10500, 'insurance_deductions': 525, 'other_deductions': 0, 'net_pay': 9975, 'payment_date': '2026-01-31'}},
-    {{'employee_id': 'EMP002', 'employee_name': 'خالد علي', 'department': 'تشغيلي', 'basic_salary': 5000, 'housing_allowance': 1250, 'transport_allowance': 300, 'other_allowances': 200, 'gross_pay': 6750, 'insurance_deductions': 337.5, 'other_deductions': 50, 'net_pay': 6362.5, 'payment_date': '2026-01-31'}}
-]
-output_path = generate_payroll_register(
-    company_name="شركة ردينت", period="يناير 2026", employees=employees_data,
-    include_signature_slips=True, output_dir="{WORKSPACE_DIR}"
-)
-print("SUCCESS: " + output_path)
-```
-⚠️ تحذيرات صارمة وحاسمة:
-- هذه الدالة تنشئ ملف Excel متعدد الأوراق، ممنوع استخدام generate_styled_letter (Word) لكشف الرواتب أبداً!
-- employees يجب أن تكون LIST من DICTS (أقواس معقوفة {{}} داخل أقواس مربعة [])، وليست string أبداً!
-- ممنوع اختراع دوال غير موجودة.
-- اطبع النتيجة حصراً: print("SUCCESS: " + output_path)
-
-الآن نفذ الطلب: {user_request}
-{routing_instruction}
-ابدأ بـ ```python وانهِ بـ ```"""
-        }
-        
-        function_name = routing['function']
-        if function_name and function_name in function_prompts:
-            return function_prompts[function_name]
-        
-        return f"""أنت مبرمج Python خبير.
-🎯 طلب المستخدم: {user_request}
-{routing_instruction}
-اكتب كود Python كامل بمعايير احترافية. ابدأ بـ ```python وانهِ بـ ```"""
-
-    def _build_fix_prompt(self, original_request: str, previous_code: str, error: str) -> str:
-        return f"""❌ الكود السابق فشل.
-الطلب: {original_request}
-الكود الذي فشل:
+الكود السابق:
 ```python
 {previous_code}
 ```
-الخطأ: {error}
-==========================================
-تعليمات التصحيح:
-1. استخدم الدالة المناسبة من core.formatter
-2. تأكد من تمرير جميع المعاملات المطلوبة
-3. اطبع النتيجة بهذه الصيغة حصراً: print("SUCCESS: " + output_path)
 
-أعد كتابة الكود كاملاً. ابدأ بـ ```python وانهِ بـ ```"""
+المشكلة: {str(error)[:2500]}
+
+{R.allowed_functions_prompt()}
+
+صحّح الكود وأعد كتابته كاملاً داخل كتلة ```python واحدة، واحفظ الناتج في {WORKSPACE_DIR} ثم اطبع SUCCESS: والمسار.
+لا تخترع دوالاً ولا وسائط غير موجودة."""
 
     def _extract_code(self, response: str) -> str:
-        if '```python' in response:
-            start = response.find('```python') + 9
-            end = response.find('```', start)
-            if end != -1:
-                return response[start:end].strip()
-        
-        if '```' in response:
-            start = response.find('```') + 3
-            end = response.find('```', start)
-            if end != -1:
-                return response[start:end].strip()
-        
-        return response.strip()
+        """استخراج كود Python: يفضّل الكتلة التي فيها SUCCESS ثم الأطول، ويقبل كوداً بلا أسوار إن كان صالحاً."""
+        if not response:
+            return None
+        blocks = [b.strip() for b in re.findall(r"```(?:python|py)?[ \t]*\n(.*?)```", response, re.S) if b.strip()]
+        if blocks:
+            good = [b for b in blocks if "SUCCESS" in b] or blocks
+            return max(good, key=len)
+        m = re.search(r"```(?:python|py)?[ \t]*\n(.*)$", response, re.S)     # كتلة غير مغلقة (رد مقطوع)
+        if m and m.group(1).strip():
+            return m.group(1).strip()
+        s = response.strip()
+        if re.match(r"^(from|import)\s", s):
+            try:
+                ast.parse(s)
+                return s
+            except SyntaxError:
+                return None
+        return None
