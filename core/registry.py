@@ -1,16 +1,7 @@
 """
 core/registry.py  -  Officia
 مصدر الحقيقة الوحيد لدوال النظام + طبقة حماية الـ Router من اختراع الدوال.
-
-يخدم ثلاث طبقات:
-  1) التوجيه:     route_keywords()  أطول كلمة مفتاحية مطابقة تفوز (لا ترتيب القاموس).
-  2) وسائط الدوال: function_args_prompt() + validate_call_args()  → النموذج يملأ JSON فقط، والنظام ينفّذ.
-  3) حارس الكود:   check_and_fix_code()  → AST قبل التنفيذ: يصلح الأسماء المخترعة الشائعة تلقائياً،
-                    ويرفض الدوال غير الموجودة والوسائط غير المدعومة والاستيرادات الخطرة.
-
-الدوال الحقيقية تُقرأ بالفحص (inspect) من core.formatter وغيره، فلا قائمة يدوية تتقادم.
 """
-
 import ast
 import difflib
 import importlib
@@ -18,9 +9,9 @@ import inspect
 import json
 import re
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # سجل الدوال: أضف دالة جديدة هنا مرة واحدة فتظهر في التوجيه والموجهات والحارس
-# ---------------------------------------------------------------------------
+# ===========================================================================
 REGISTRY = {
     "generate_styled_letter": {
         "module": "core.formatter", "type": "word", "planner": "letter",
@@ -35,8 +26,9 @@ REGISTRY = {
     "generate_financial_report": {
         "module": "core.formatter", "type": "excel",
         "desc": "قائمة الدخل / المركز المالي (الميزانية) / التدفقات النقدية (Excel)",
-        "keywords": ["تقرير مالي", "قائمة الدخل", "قائمة دخل", "ميزان عمومية", "ميزانية", "المركز المالي",
-                     "التدفقات النقدية", "قائمة التدفقات", "income statement", "balance sheet", "cash flow"],
+        "keywords": ["تقرير مالي", "قائمة الدخل", "قائمة دخل", "ميزان عمومية", "ميزانية",
+                     "المركز المالي", "التدفقات النقدية", "قائمة التدفقات",
+                     "income statement", "balance sheet", "cash flow"],
     },
     "create_fixed_asset_report": {
         "module": "core.formatter", "type": "excel",
@@ -56,7 +48,8 @@ REGISTRY = {
     "generate_payroll_register": {
         "module": "core.formatter", "type": "excel",
         "desc": "كشف رواتب ومسير موظفين مع قسائم",
-        "keywords": ["كشف رواتب", "كشف الرواتب", "مسير رواتب", "مسير الرواتب", "رواتب الموظفين", "payroll"],
+        "keywords": ["كشف رواتب", "كشف الرواتب", "مسير رواتب", "مسير الرواتب",
+                     "رواتب الموظفين", "payroll"],
     },
     "create_professional_invoice": {
         "module": "core.formatter", "type": "excel",
@@ -71,12 +64,14 @@ REGISTRY = {
     "convert_pdf_to_word": {
         "module": "core.pdf_converter", "type": "file", "needs_file": True, "file_ext": ".pdf",
         "desc": "تحويل PDF إلى Word",
-        "keywords": ["تحويل pdf", "pdf to word", "pdf الى word", "pdf إلى word", "pdf الى ورد", "pdf إلى ورد"],
+        "keywords": ["تحويل pdf", "pdf to word", "pdf الى word", "pdf إلى word",
+                     "pdf الى ورد", "pdf إلى ورد"],
     },
     "convert_pdf_to_excel": {
         "module": "core.pdf_converter", "type": "file", "needs_file": True, "file_ext": ".pdf",
         "desc": "استخراج جداول PDF إلى Excel",
-        "keywords": ["pdf to excel", "استخراج جداول", "pdf الى excel", "pdf إلى excel", "pdf الى اكسل", "pdf إلى إكسل"],
+        "keywords": ["pdf to excel", "استخراج جداول", "pdf الى excel", "pdf إلى excel",
+                     "pdf الى اكسل", "pdf إلى إكسل"],
     },
     "replicate_document": {
         "module": "core.formatter", "type": "file", "needs_file": True,
@@ -90,7 +85,7 @@ REGISTRY = {
     },
 }
 
-# أسماء يخترعها النموذج عادةً  →  (الدالة الحقيقية، وسائط مسبقة)
+# أسماء يخترعها النموذج عادةً → (الدالة الحقيقية، وسائط مسبقة)
 ALIASES = {
     "generate_balance_sheet": ("generate_financial_report", {"report_type": "balance_sheet"}),
     "create_balance_sheet": ("generate_financial_report", {"report_type": "balance_sheet"}),
@@ -124,16 +119,19 @@ ALIASES = {
 
 # وحدات الأدوات المسموح استيراد أسمائها من core
 ENGINE_MODULES = ["core.table_engine", "core.formula_helpers"]
+
 # محظور في الكود المولَّد
-BLOCKED_MODULES = {"subprocess", "socket", "requests", "urllib", "http", "ftplib", "smtplib", "telnetlib",
-                   "shutil", "ctypes", "importlib", "pickle", "marshal", "multiprocessing", "webbrowser"}
-BLOCKED_CALLS = {"eval", "exec", "compile", "__import__", "os.system", "os.popen", "os.remove", "os.unlink",
-                 "os.rmdir", "os.removedirs", "os.rename", "os.kill", "os.execv", "os.spawnl"}
+BLOCKED_MODULES = {"subprocess", "socket", "requests", "urllib", "http", "ftplib",
+                   "smtplib", "telnetlib", "shutil", "ctypes", "importlib", "pickle",
+                   "marshal", "multiprocessing", "webbrowser"}
+BLOCKED_CALLS = {"eval", "exec", "compile", "__import__", "os.system", "os.popen",
+                 "os.remove", "os.unlink", "os.rmdir", "os.removedirs", "os.rename",
+                 "os.kill", "os.execv", "os.spawnl"}
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # أدوات عامة
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def norm(text) -> str:
     """توحيد النص للمطابقة: تشكيل، همزات، ياء/ألف مقصورة، تاء مربوطة، حروف صغيرة."""
     t = re.sub(r"[\u064B-\u0652\u0640]", "", str(text).lower())
@@ -143,10 +141,10 @@ def norm(text) -> str:
 
 
 def extract_json(text):
-    """أول كائن JSON في رد النموذج (يتحمل ```json والنص المحيط)."""
+    """أول كائن JSON في رد النموذج (يتحمل `json والنص المحيط)."""
     if isinstance(text, dict):
         return text
-    s = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(text).strip(), flags=re.S)
+    s = re.sub(r"^`(?:json)?\s*|\s*```$", "", str(text).strip(), flags=re.S)
     start, depth = s.find("{"), 0
     if start < 0:
         raise ValueError("لم يرجع النموذج JSON")
@@ -208,20 +206,17 @@ def known_names():
     return names
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 1) التوجيه
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def _kw_hits(text_norm, kw_norm):
-    if re.fullmatch(r"[a-z0-9 ]+", kw_norm):            # كلمة لاتينية: بحدود كلمة (cv لا تطابق recv)
+    if re.fullmatch(r"[a-z0-9 ]+", kw_norm):
         return re.search(r"(?<![a-z0-9])" + re.escape(kw_norm) + r"(?![a-z0-9])", text_norm) is not None
     return kw_norm in text_norm
 
 
 def route_keywords(user_request, uploaded_file_path=None):
-    """
-    أطول كلمة مفتاحية مطابقة تحدد الدالة (التعادل: الأسبق تسجيلاً).
-    مع ملف مرفوع من نوع PDF تُستبعد دوال Word/Excel التوليدية، وهكذا.
-    """
+    """أطول كلمة مفتاحية مطابقة تحدد الدالة (التعادل: الأسبق تسجيلاً)."""
     text = norm(user_request)
     ext = ("." + uploaded_file_path.rsplit(".", 1)[-1].lower()) if uploaded_file_path and "." in uploaded_file_path else None
     best = (0, None)
@@ -259,9 +254,9 @@ def classify_prompt(user_request, uploaded_file_path=None):
             f"أجب باسم الدالة فقط (أو رقمها). إن لم تنطبق أي دالة (يحتاج برمجة مخصصة) اكتب 0. لا شرح.")
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 2) وسائط الدوال (النموذج يملأ JSON، النظام ينفّذ)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def _financial_hints():
     mod = _module("core.formatter")
     tmpl = getattr(mod, "ACCOUNTING_TEMPLATES", None) if mod else None
@@ -293,22 +288,18 @@ def function_args_prompt(name, user_request, uploaded_file_path=None):
             params.append(f"  - {p.name}: {req}")
     extra = _financial_hints() if name == "generate_financial_report" else ""
     file_line = f"\nالملف المرفوع: {uploaded_file_path}" if uploaded_file_path else ""
-    return f"""مهمتك تعبئة وسائط الدالة {name} من طلب المستخدم. أعد JSON فقط بالشكل {{"args": {{...}}}}.
-
+    return f"""مهمتك تعبئة وسائط الدالة {name} من طلب المستخدم. أعد JSON فقط بالشكل {{ "args": {{...}}}}.
 طلب المستخدم: {user_request}{file_line}
-
 وصف الدالة:
 {doc}
-
 الوسائط المسموحة فقط (لا تخترع وسائط غير مذكورة):
 {chr(10).join(params)}
 {extra}
-
 قواعد:
-- لا تخترع بيانات لم يذكرها المستخدم؛ ما ينقص اترك له قيمته الافتراضية أو ضع نصاً محايداً.
-- الأرقام أرقام (بلا فواصل أو رموز عملة)، والقوائم قوائم JSON.
-- لا تضع output_dir (يحدده النظام).
-- لا تكتب أي نص خارج JSON."""
+لا تخترع بيانات لم يذكرها المستخدم؛ ما ينقص اترك له قيمته الافتراضية أو ضع نصاً محايداً.
+الأرقام أرقام (بلا فواصل أو رموز عملة)، والقوائم قوائم JSON.
+لا تضع output_dir (يحدده النظام).
+لا تكتب أي نص خارج JSON."""
 
 
 def validate_call_args(name, args):
@@ -334,15 +325,15 @@ def validate_call_args(name, args):
     return issues
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # قائمة مسموحة مضغوطة للموجهات (مولّدة من السجل والتوقيعات)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 def allowed_functions_prompt():
     lines = ["⛔ الدوال المسموحة حصراً من core (ممنوع استيراد أو استدعاء أي دالة أخرى منها):"]
     for name, meta in REGISTRY.items():
         sig = get_signature(name)
         params = ", ".join(p.name for p in sig.parameters.values()
-                           if p.kind not in (p.VAR_KEYWORD, p.VAR_POSITIONAL)) if sig else "..."
+                          if p.kind not in (p.VAR_KEYWORD, p.VAR_POSITIONAL)) if sig else "..."
         lines.append(f"  • {name}({params}) — {meta['desc']}")
     lines.append("أدوات الجداول (core.table_engine / core.formula_helpers): col, resolve_columns, write_table, "
                  "apply_widths, write_total_row, write_derived_column, write_balance_check, finalize_workbook.")
@@ -350,12 +341,11 @@ def allowed_functions_prompt():
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # 3) حارس الكود المولَّد (AST)
-# ---------------------------------------------------------------------------
+# ===========================================================================
 class _AliasHealer(ast.NodeTransformer):
     """يستبدل الأسماء المخترعة المعروفة بالدالة الحقيقية مع وسائطها المسبقة."""
-
     def __init__(self):
         self.fixes = []
 
@@ -419,8 +409,9 @@ def check_and_fix_code(code: str) -> dict:
         try:
             result["code"] = ast.unparse(tree)
             result["fixes"] = healer.fixes
-        except AttributeError:      # Python < 3.9
+        except AttributeError:
             result["issues"].append("أسماء دوال مخترعة: " + "؛ ".join(healer.fixes))
+
     issues = result["issues"]
     allowed = known_names()
     all_core_public = set()
