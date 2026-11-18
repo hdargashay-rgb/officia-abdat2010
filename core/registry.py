@@ -1,6 +1,6 @@
 """
-core/registry.py  -  Officia
-مصدر الحقيقة الوحيد لدوال النظام + طبقة حماية الـ Router من اختراع الدوال.
+core/registry.py - Officia
+مصدر الحقيقة الوحيد لدوال النظام.
 """
 import ast
 import difflib
@@ -9,9 +9,6 @@ import inspect
 import json
 import re
 
-# ===========================================================================
-# سجل الدوال: أضف دالة جديدة هنا مرة واحدة فتظهر في التوجيه والموجهات والحارس
-# ===========================================================================
 REGISTRY = {
     "generate_styled_letter": {
         "module": "core.formatter", "type": "word", "planner": "letter",
@@ -85,7 +82,6 @@ REGISTRY = {
     },
 }
 
-# أسماء يخترعها النموذج عادةً → (الدالة الحقيقية، وسائط مسبقة)
 ALIASES = {
     "generate_balance_sheet": ("generate_financial_report", {"report_type": "balance_sheet"}),
     "create_balance_sheet": ("generate_financial_report", {"report_type": "balance_sheet"}),
@@ -117,10 +113,8 @@ ALIASES = {
     "create_fixed_assets_report": ("create_fixed_asset_report", {}),
 }
 
-# وحدات الأدوات المسموح استيراد أسمائها من core
 ENGINE_MODULES = ["core.table_engine", "core.formula_helpers"]
 
-# محظور في الكود المولَّد
 BLOCKED_MODULES = {"subprocess", "socket", "requests", "urllib", "http", "ftplib",
                    "smtplib", "telnetlib", "shutil", "ctypes", "importlib", "pickle",
                    "marshal", "multiprocessing", "webbrowser"}
@@ -129,11 +123,7 @@ BLOCKED_CALLS = {"eval", "exec", "compile", "__import__", "os.system", "os.popen
                  "os.kill", "os.execv", "os.spawnl"}
 
 
-# ===========================================================================
-# أدوات عامة
-# ===========================================================================
 def norm(text) -> str:
-    """توحيد النص للمطابقة: تشكيل، همزات، ياء/ألف مقصورة، تاء مربوطة، حروف صغيرة."""
     t = re.sub(r"[\u064B-\u0652\u0640]", "", str(text).lower())
     for a, b in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ة", "ه"), ("ى", "ي")):
         t = t.replace(a, b)
@@ -141,7 +131,6 @@ def norm(text) -> str:
 
 
 def extract_json(text):
-    """أول كائن JSON في رد النموذج (يتحمل `json والنص المحيط)."""
     if isinstance(text, dict):
         return text
     s = re.sub(r"^`(?:json)?\s*|\s*```$", "", str(text).strip(), flags=re.S)
@@ -178,7 +167,6 @@ def _module(name):
 
 
 def get_function(name):
-    """الدالة الحقيقية من وحدتها، أو None."""
     meta = REGISTRY.get(name)
     mod = _module(meta["module"]) if meta else None
     return getattr(mod, name, None) if mod else None
@@ -197,7 +185,6 @@ def routable():
 
 
 def known_names():
-    """كل الأسماء المسموح استيرادها: الدوال المسجلة + أدوات المحرك."""
     names = set(REGISTRY)
     for modname in ENGINE_MODULES:
         mod = _module(modname)
@@ -206,9 +193,6 @@ def known_names():
     return names
 
 
-# ===========================================================================
-# 1) التوجيه
-# ===========================================================================
 def _kw_hits(text_norm, kw_norm):
     if re.fullmatch(r"[a-z0-9 ]+", kw_norm):
         return re.search(r"(?<![a-z0-9])" + re.escape(kw_norm) + r"(?![a-z0-9])", text_norm) is not None
@@ -216,7 +200,6 @@ def _kw_hits(text_norm, kw_norm):
 
 
 def route_keywords(user_request, uploaded_file_path=None):
-    """أطول كلمة مفتاحية مطابقة تحدد الدالة (التعادل: الأسبق تسجيلاً)."""
     text = norm(user_request)
     ext = ("." + uploaded_file_path.rsplit(".", 1)[-1].lower()) if uploaded_file_path and "." in uploaded_file_path else None
     best = (0, None)
@@ -234,7 +217,6 @@ def route_keywords(user_request, uploaded_file_path=None):
 
 
 def match_function_in_text(text):
-    """يبحث عن اسم دالة مسجلة أو رقمها داخل رد المصنّف الذكي."""
     names = routable()
     for n in sorted(names, key=len, reverse=True):
         if n in text:
@@ -254,9 +236,6 @@ def classify_prompt(user_request, uploaded_file_path=None):
             f"أجب باسم الدالة فقط (أو رقمها). إن لم تنطبق أي دالة (يحتاج برمجة مخصصة) اكتب 0. لا شرح.")
 
 
-# ===========================================================================
-# 2) وسائط الدوال (النموذج يملأ JSON، النظام ينفّذ)
-# ===========================================================================
 def _financial_hints():
     mod = _module("core.formatter")
     tmpl = getattr(mod, "ACCOUNTING_TEMPLATES", None) if mod else None
@@ -303,7 +282,6 @@ def function_args_prompt(name, user_request, uploaded_file_path=None):
 
 
 def validate_call_args(name, args):
-    """يرجع قائمة مشكلات (فارغة = صالح): وسائط غير مدعومة، ناقصة، أو بنوع خاطئ."""
     sig = get_signature(name)
     if sig is None:
         return [f"تعذر قراءة توقيع {name}"]
@@ -325,9 +303,6 @@ def validate_call_args(name, args):
     return issues
 
 
-# ===========================================================================
-# قائمة مسموحة مضغوطة للموجهات (مولّدة من السجل والتوقيعات)
-# ===========================================================================
 def allowed_functions_prompt():
     lines = ["⛔ الدوال المسموحة حصراً من core (ممنوع استيراد أو استدعاء أي دالة أخرى منها):"]
     for name, meta in REGISTRY.items():
@@ -341,11 +316,7 @@ def allowed_functions_prompt():
     return "\n".join(lines)
 
 
-# ===========================================================================
-# 3) حارس الكود المولَّد (AST)
-# ===========================================================================
 class _AliasHealer(ast.NodeTransformer):
-    """يستبدل الأسماء المخترعة المعروفة بالدالة الحقيقية مع وسائطها المسبقة."""
     def __init__(self):
         self.fixes = []
 
@@ -391,10 +362,6 @@ def _dotted(node):
 
 
 def check_and_fix_code(code: str) -> dict:
-    """
-    يرجع {'code': الكود بعد الإصلاح التلقائي، 'fixes': [...], 'issues': [...], 'ok': bool}.
-    issues = مشكلات تمنع التنفيذ ويجب إعادتها للنموذج.
-    """
     result = {"code": code, "fixes": [], "issues": [], "ok": False}
     try:
         tree = ast.parse(code)
