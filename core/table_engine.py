@@ -22,8 +22,10 @@ import copy
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
-from formula_helpers import finalize_workbook, find_hardcoded_totals, check_report  # noqa: F401
-
+try:
+    from core.formula_helpers import finalize_workbook, find_hardcoded_totals, check_report  # noqa: F401
+except ImportError:
+    from formula_helpers import finalize_workbook, find_hardcoded_totals, check_report  # noqa: F401
 _TOKEN = re.compile(r"\{([^{}]+)\}")
 
 NUM_FMT = "#,##0.00"
